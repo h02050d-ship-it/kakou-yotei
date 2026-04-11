@@ -220,7 +220,10 @@ function getVal(it, field) {
   if (ed[k] && ed[k][field] !== undefined) return ed[k][field];
   return it[field];
 }
-function itemKey(it) { return `${it._row}_${it.customer}_${it.hinmei}`; }
+function itemKey(it) {
+  if (!it._uid) it._uid = `${it._row}_${it.customer}_${it.hinmei}_${it.grade}_${it.thickness}_${it.length}`;
+  return it._uid;
+}
 
 function getColOrder() {
   try { const o = JSON.parse(localStorage.getItem(COLORDER_KEY)); return o && o.length ? o : DEFAULT_COLS; }
@@ -532,11 +535,10 @@ function onDeleteRow(key) {
   render();
 }
 
-let addRowCount = 0;
 function onAddRow() {
-  addRowCount++;
+  const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const newRow = {
-    _row: 900 + addRowCount, order: '1', checked: false,
+    _row: uid, _uid: uid, order: '1', checked: false,
     customer: '', hinmei: 'F', grade: '丸節',
     thickness: '15', width: '120', length: '4000',
     qty: '8', planned: '-', actual: '-',
