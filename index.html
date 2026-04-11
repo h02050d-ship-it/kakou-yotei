@@ -145,6 +145,33 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .error-msg { text-align: center; padding: 40px; color: #d32f2f; }
   .error-msg button { margin-top: 8px; padding: 6px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,.5); z-index: 1000; align-items: center; justify-content: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; max-width: 600px; width: 90%;
+    max-height: 80vh; overflow: auto; box-shadow: 0 8px 32px rgba(0,0,0,.2);
+  }
+  .modal-head {
+    padding: 14px 20px; background: #37474f; color: #fff; border-radius: 12px 12px 0 0;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 17px; font-weight: 700; position: sticky; top: 0; z-index: 1;
+  }
+  .modal-close {
+    background: none; border: none; color: #fff; font-size: 24px; cursor: pointer; padding: 0 4px;
+  }
+  .modal table { width: 100%; border-collapse: collapse; }
+  .modal th { background: #eceff1; padding: 8px 12px; font-size: 14px; text-align: left; border-bottom: 1px solid #ddd; }
+  .modal td { padding: 8px 12px; font-size: 15px; border-bottom: 1px solid #eee; }
+  .modal tr:nth-child(even) { background: #fafafa; }
+  .modal .mark { color: #4caf50; font-size: 18px; font-weight: 700; }
+  .modal .note { padding: 10px 20px; font-size: 13px; color: #d32f2f; font-weight: 600; }
+
+  .cb-check { width: 20px; height: 20px; cursor: pointer; accent-color: #1a73e8; }
 </style>
 </head>
 <body>
@@ -152,10 +179,18 @@
   <h1>加工予定表</h1>
   <div class="header-right">
     <span id="lastUpdated"></span>
+    <button class="btn" onclick="showSealModal()">シール・段ボール表</button>
     <button class="btn" onclick="loadData()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
       更新
     </button>
+  </div>
+</div>
+<div class="modal-overlay" id="sealModal" onclick="if(event.target===this)closeSealModal()">
+  <div class="modal">
+    <div class="modal-head">シール・段ボール有無確認表<button class="modal-close" onclick="closeSealModal()">&times;</button></div>
+    <div class="note">※個口便は別</div>
+    <div id="sealModalBody"></div>
   </div>
 </div>
 <div class="main" id="mainArea">
@@ -170,8 +205,8 @@ const ARCHIVE_KEY = 'kakou_archive';
 const ADDEDROWS_KEY = 'kakou_addedrows';
 
 // Column definitions: id, header label, cell renderer fn name
-const DEFAULT_COLS = ['jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
-const COL_LABELS = {jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工済在庫',remark:'備考'};
+const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
+const COL_LABELS = {dblcheck:'W確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工済在庫',remark:'備考'};
 
 let allItems = [];
 
@@ -269,6 +304,7 @@ function cellRenderers(it, sz) {
   const av=getVal(it,'actual');
 
   return {
+    dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
     jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option><option value="1" ${junCur==='1'?'selected':''}>1</option><option value="2" ${junCur==='2'?'selected':''}>2</option><option value="3" ${junCur==='3'?'selected':''}>3</option></select>`,
     order: `<select class="sel sel-ord" style="font-size:${sz}px" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
@@ -325,7 +361,7 @@ function render() {
   let html = '<div class="main-content">';
 
   // 結束順
-  const kessokuCols = cols.filter(c => c !== 'zaiko');
+  const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck');
   html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
   if (kessoku.length) {
     html += `<table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
@@ -464,6 +500,11 @@ function onGenSelChange(el) {
     }
   } else {
     saveEdit(el.dataset.key, el.dataset.field, el.value);
+    // 長さ変更時に入数を自動設定
+    if (el.dataset.field === 'length') {
+      if (el.value === '3000') saveEdit(el.dataset.key, 'qty', '10');
+      else if (el.value === '4000') saveEdit(el.dataset.key, 'qty', '8');
+    }
   }
   render();
 }
@@ -508,6 +549,34 @@ function onAddRow() {
   localStorage.setItem(ADDEDROWS_KEY, JSON.stringify(addedRows));
   render();
 }
+
+// シール・段ボール確認表モーダル
+const SEAL_GID = 1904537458;
+async function showSealModal() {
+  const body = document.getElementById('sealModalBody');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:#888">読み込み中...</div>';
+  document.getElementById('sealModal').classList.add('show');
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SEAL_GID}`;
+    const res = await fetch(url);
+    const csv = await res.text();
+    const lines = csv.split('\n').map(parseLine).filter(Boolean);
+    let html = '<table><thead><tr><th>取引先</th><th>シール</th><th>段ボール（役物）</th></tr></thead><tbody>';
+    for (let i = 1; i < lines.length; i++) {
+      const r = lines[i];
+      const name = (r[0]||'').replace(/"/g,'').trim();
+      if (!name) continue;
+      const seal = (r[1]||'').replace(/"/g,'').trim().toUpperCase() === 'TRUE';
+      const dan = (r[2]||'').replace(/"/g,'').trim().toUpperCase() === 'TRUE';
+      html += `<tr><td>${name}</td><td>${seal?'<span class="mark">&#10003;</span>':''}</td><td>${dan?'<span class="mark">&#10003;</span>':''}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    body.innerHTML = html;
+  } catch(e) {
+    body.innerHTML = '<div style="padding:20px;color:#d32f2f">読み込みに失敗しました</div>';
+  }
+}
+function closeSealModal() { document.getElementById('sealModal').classList.remove('show'); }
 
 setInterval(loadData, 5*60*1000);
 loadData();
