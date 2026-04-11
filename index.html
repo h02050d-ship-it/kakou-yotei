@@ -550,18 +550,21 @@ function saveRowOrder(order) { localStorage.setItem(ROWORDER_KEY, JSON.stringify
 
 let dragRowKey = null;
 function initRowDrag() {
-  const rows = document.querySelectorAll('#tbl-seizou tbody tr[draggable]');
-  rows.forEach(tr => {
-    tr.addEventListener('dragstart', e => {
-      // ハンドルからのドラッグのみ許可
-      if (!e.target.classList.contains('drag-handle') && !e.target.closest('.drag-handle')) {
-        e.preventDefault(); return;
-      }
+  // ハンドルにdraggableを設定
+  document.querySelectorAll('#tbl-seizou .drag-handle').forEach(handle => {
+    handle.draggable = true;
+    handle.addEventListener('dragstart', e => {
+      const tr = handle.closest('tr');
       dragRowKey = tr.dataset.rowkey;
       tr.classList.add('row-dragging');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
     });
+  });
+
+  document.querySelectorAll('#tbl-seizou tbody tr[data-rowkey]').forEach(tr => {
+    // trのdraggableは無効化（ハンドルのみ）
+    tr.draggable = false;
     tr.addEventListener('dragend', () => {
       tr.classList.remove('row-dragging');
       document.querySelectorAll('.row-drag-over').forEach(el => el.classList.remove('row-drag-over'));
@@ -577,13 +580,11 @@ function initRowDrag() {
       tr.classList.remove('row-drag-over');
       const targetKey = tr.dataset.rowkey;
       if (dragRowKey && dragRowKey !== targetKey) {
-        // allItems内で並び替え
         const fromIdx = allItems.findIndex(it => itemKey(it) === dragRowKey);
         const toIdx = allItems.findIndex(it => itemKey(it) === targetKey);
         if (fromIdx !== -1 && toIdx !== -1) {
           const [moved] = allItems.splice(fromIdx, 1);
           allItems.splice(toIdx, 0, moved);
-          // 並び順を保存
           saveRowOrder(allItems.map(it => itemKey(it)));
           render();
         }
