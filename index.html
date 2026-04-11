@@ -92,6 +92,7 @@
   .tbl-seizou .bnum { font-weight: 800; font-size: 20px; }
   .tbl-seizou .dim { font-weight: 600; font-size: 16px; }
   .tbl-seizou .rmk { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: 13px; color: #795548; }
+  .tbl-seizou tr.ord-not0 { opacity: .7; }
 
   .tbl-kanryo thead th { background: #78909c; }
   .tbl-kanryo tbody tr { background: #fafafa; opacity: .45; }
@@ -177,10 +178,11 @@
 
   /* Row drag */
   .drag-handle {
-    cursor: grab; color: #bbb; font-size: 16px; user-select: none; padding: 0 4px;
+    cursor: grab; color: #bbb; font-size: 18px; user-select: none; padding: 4px 8px;
+    touch-action: none;
   }
   .drag-handle:hover { color: #666; }
-  tr.row-dragging { opacity: .3; }
+  tr.row-dragging { opacity: .3; background: #e3f2fd !important; }
   tr.row-drag-over td { box-shadow: inset 0 -3px 0 #1a73e8; }
 </style>
 </head>
@@ -398,7 +400,8 @@ function render() {
       const isLastEmpty = idx === seizouchu.length - 1 && (!cust || !cust.trim());
       const delBtn = isLastEmpty ? `<button class="btn-del" onclick="onDeleteRow('${k}')">削除</button>` : '';
       const row = buildRow(it, 14, cols);
-      html += `<tr draggable="true" data-rowkey="${k}" data-rowidx="${idx}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
+      const ordCls = String(getVal(it,'order')) !== '0' ? ' ord-not0' : '';
+      html += `<tr draggable="true" data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
     });
     html += '</tbody></table>';
   } else {
@@ -549,31 +552,75 @@ function getRowOrder() { try { return JSON.parse(localStorage.getItem(ROWORDER_K
 function saveRowOrder(order) { localStorage.setItem(ROWORDER_KEY, JSON.stringify(order)); }
 
 let dragRowKey = null;
+let dragTr = null;
 function initRowDrag() {
-  // ハンドルにdraggableを設定
+  const tbody = document.querySelector('#tbl-seizou tbody');
+  if (!tbody) return;
+
   document.querySelectorAll('#tbl-seizou .drag-handle').forEach(handle => {
+    // === Mouse drag ===
     handle.draggable = true;
     handle.addEventListener('dragstart', e => {
-      const tr = handle.closest('tr');
-      dragRowKey = tr.dataset.rowkey;
-      tr.classList.add('row-dragging');
+      dragTr = handle.closest('tr');
+      dragRowKey = dragTr.dataset.rowkey;
+      dragTr.classList.add('row-dragging');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', '');
     });
+
+    // === Touch drag ===
+    handle.addEventListener('touchstart', e => {
+      e.preventDefault();
+      dragTr = handle.closest('tr');
+      dragRowKey = dragTr.dataset.rowkey;
+      dragTr.classList.add('row-dragging');
+    }, { passive: false });
+
+    handle.addEventListener('touchmove', e => {
+      if (!dragTr) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      // clear previous highlights
+      document.querySelectorAll('.row-drag-over').forEach(r => r.classList.remove('row-drag-over'));
+      if (el) {
+        const overTr = el.closest('tr[data-rowkey]');
+        if (overTr && overTr !== dragTr) overTr.classList.add('row-drag-over');
+      }
+    }, { passive: false });
+
+    handle.addEventListener('touchend', e => {
+      if (!dragTr) return;
+      const touch = e.changedTouches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      const targetTr = el ? el.closest('tr[data-rowkey]') : null;
+
+      document.querySelectorAll('.row-drag-over').forEach(r => r.classList.remove('row-drag-over'));
+      dragTr.classList.remove('row-dragging');
+
+      if (targetTr && targetTr.dataset.rowkey !== dragRowKey) {
+        const fromIdx = allItems.findIndex(it => itemKey(it) === dragRowKey);
+        const toIdx = allItems.findIndex(it => itemKey(it) === targetTr.dataset.rowkey);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const [moved] = allItems.splice(fromIdx, 1);
+          allItems.splice(toIdx, 0, moved);
+          saveRowOrder(allItems.map(it => itemKey(it)));
+          render();
+        }
+      }
+      dragTr = null;
+      dragRowKey = null;
+    });
   });
 
+  // Mouse: row events
   document.querySelectorAll('#tbl-seizou tbody tr[data-rowkey]').forEach(tr => {
-    // trのdraggableは無効化（ハンドルのみ）
     tr.draggable = false;
     tr.addEventListener('dragend', () => {
       tr.classList.remove('row-dragging');
       document.querySelectorAll('.row-drag-over').forEach(el => el.classList.remove('row-drag-over'));
     });
-    tr.addEventListener('dragover', e => {
-      if (!dragRowKey) return;
-      e.preventDefault();
-      tr.classList.add('row-drag-over');
-    });
+    tr.addEventListener('dragover', e => { if (dragRowKey) { e.preventDefault(); tr.classList.add('row-drag-over'); } });
     tr.addEventListener('dragleave', () => { tr.classList.remove('row-drag-over'); });
     tr.addEventListener('drop', e => {
       e.preventDefault();
@@ -589,7 +636,7 @@ function initRowDrag() {
           render();
         }
       }
-      dragRowKey = null;
+      dragRowKey = null; dragTr = null;
     });
   });
 }
