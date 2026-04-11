@@ -174,6 +174,14 @@
 
   .cb-check { width: 20px; height: 20px; cursor: pointer; accent-color: #1a73e8; }
   .zaiko-on { background: #e0f7fa !important; }
+
+  /* Row drag */
+  .drag-handle {
+    cursor: grab; color: #bbb; font-size: 16px; user-select: none; padding: 0 4px;
+  }
+  .drag-handle:hover { color: #666; }
+  tr.row-dragging { opacity: .3; }
+  tr.row-drag-over td { box-shadow: inset 0 -3px 0 #1a73e8; }
 </style>
 </head>
 <body>
@@ -259,6 +267,7 @@ async function loadData() {
     // 追加行を復元
     const added = getAddedRows();
     added.forEach(r => allItems.push(r));
+    applyRowOrder();
     render();
     document.getElementById('lastUpdated').textContent =
       new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
@@ -380,7 +389,7 @@ function render() {
   // 製造中
   html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button></div>`;
   if (seizouchu.length) {
-    html += `<table class="tbl-seizou" id="tbl-seizou"><thead><tr>`;
+    html += `<table class="tbl-seizou" id="tbl-seizou"><thead><tr><th></th>`;
     cols.forEach((c,i) => { html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou">${COL_LABELS[c]||c}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
     seizouchu.forEach((it, idx) => {
@@ -388,7 +397,8 @@ function render() {
       const cust = getVal(it, 'customer');
       const isLastEmpty = idx === seizouchu.length - 1 && (!cust || !cust.trim());
       const delBtn = isLastEmpty ? `<button class="btn-del" onclick="onDeleteRow('${k}')">削除</button>` : '';
-      html += buildRow(it, 14, cols).replace('</tr>', `<td>${delBtn}</td></tr>`);
+      const row = buildRow(it, 14, cols);
+      html += `<tr draggable="true" data-rowkey="${k}" data-rowidx="${idx}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
     });
     html += '</tbody></table>';
   } else {
@@ -458,6 +468,7 @@ function render() {
   html += '</div>';
   main.innerHTML = html;
   initDrag();
+  initRowDrag();
   initCellNav();
 }
 
@@ -529,6 +540,70 @@ function initDrag() {
       }
       dragCol = null;
     });
+  });
+}
+
+// ===== Row drag & drop =====
+const ROWORDER_KEY = 'kakou_roworder';
+function getRowOrder() { try { return JSON.parse(localStorage.getItem(ROWORDER_KEY)||'[]'); } catch { return []; } }
+function saveRowOrder(order) { localStorage.setItem(ROWORDER_KEY, JSON.stringify(order)); }
+
+let dragRowKey = null;
+function initRowDrag() {
+  const rows = document.querySelectorAll('#tbl-seizou tbody tr[draggable]');
+  rows.forEach(tr => {
+    tr.addEventListener('dragstart', e => {
+      // ハンドルからのドラッグのみ許可
+      if (!e.target.classList.contains('drag-handle') && !e.target.closest('.drag-handle')) {
+        e.preventDefault(); return;
+      }
+      dragRowKey = tr.dataset.rowkey;
+      tr.classList.add('row-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+    });
+    tr.addEventListener('dragend', () => {
+      tr.classList.remove('row-dragging');
+      document.querySelectorAll('.row-drag-over').forEach(el => el.classList.remove('row-drag-over'));
+    });
+    tr.addEventListener('dragover', e => {
+      if (!dragRowKey) return;
+      e.preventDefault();
+      tr.classList.add('row-drag-over');
+    });
+    tr.addEventListener('dragleave', () => { tr.classList.remove('row-drag-over'); });
+    tr.addEventListener('drop', e => {
+      e.preventDefault();
+      tr.classList.remove('row-drag-over');
+      const targetKey = tr.dataset.rowkey;
+      if (dragRowKey && dragRowKey !== targetKey) {
+        // allItems内で並び替え
+        const fromIdx = allItems.findIndex(it => itemKey(it) === dragRowKey);
+        const toIdx = allItems.findIndex(it => itemKey(it) === targetKey);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          const [moved] = allItems.splice(fromIdx, 1);
+          allItems.splice(toIdx, 0, moved);
+          // 並び順を保存
+          saveRowOrder(allItems.map(it => itemKey(it)));
+          render();
+        }
+      }
+      dragRowKey = null;
+    });
+  });
+}
+
+// loadData後に並び順を復元
+function applyRowOrder() {
+  const order = getRowOrder();
+  if (!order.length) return;
+  allItems.sort((a, b) => {
+    const ai = order.indexOf(itemKey(a));
+    const bi = order.indexOf(itemKey(b));
+    if (ai === -1 && bi === -1) return 0;
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
   });
 }
 
