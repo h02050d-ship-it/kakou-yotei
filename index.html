@@ -269,7 +269,7 @@ function cellRenderers(it, sz) {
     hinmei: `<select class="sel sel-hm" style="font-size:${sz}px;background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
     grade: genSel(it,'grade',gradeOpts,sz,''),
     thickness: genSel(it,'thickness',['-','12','15'],sz,'dim'),
-    width: genSel(it,'width',['-','120','150'],sz,'dim'),
+    width: genSel(it,'width',['120','150'],sz,'dim'),
     length: genSel(it,'length',['-','910','1820','2000','3000','4000'],sz,'dim'),
     qty: genSel(it,'qty',['-','8','10','20','40'],sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
@@ -488,7 +488,7 @@ function onAddRow() {
   const newRow = {
     _row: 900 + addRowCount, order: '0', checked: false,
     customer: '', hinmei: '-', grade: '-',
-    thickness: '-', width: '-', length: '-',
+    thickness: '-', width: '120', length: '-',
     qty: '-', planned: '-', actual: '-',
     seal: '無', danball: '無', deadline: '', remark: ''
   };
