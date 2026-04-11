@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>加工予定表</title>
+<style>
+  :root { --bg: #f0f2f5; --text: #222; --text-sub: #888; --accent: #1a73e8; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column;
+  }
+
+  .header {
+    background: var(--accent); color: #fff;
+    padding: 8px 16px; display: flex; align-items: center;
+    justify-content: space-between; flex-shrink: 0;
+  }
+  .header h1 { font-size: 22px; font-weight: 700; }
+  .header-right { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .btn {
+    background: rgba(255,255,255,.2); border: none; color: #fff;
+    padding: 6px 14px; border-radius: 6px; font-size: 14px;
+    cursor: pointer; display: flex; align-items: center; gap: 4px;
+  }
+  .btn:active { background: rgba(255,255,255,.35); }
+
+  .main { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
+  .main-content { flex-shrink: 0; }
+  .kanryo-spacer { flex: 1; min-height: 20px; }
+  .kanryo-section { flex-shrink: 0; }
+
+  .sec-head {
+    padding: 8px 16px 4px; display: flex; align-items: center; gap: 8px;
+  }
+  .sec-head h2 {
+    font-size: 15px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sec-head h2::before {
+    content: ''; display: inline-block; width: 4px; height: 16px; border-radius: 2px;
+  }
+  .sec-head .count {
+    background: #e0e0e0; padding: 1px 8px; border-radius: 10px;
+    font-size: 12px; font-weight: 600; color: #666;
+  }
+  .sec-kessoku h2 { color: #c62828; }
+  .sec-kessoku h2::before { background: #c62828; }
+  .sec-seizou h2 { color: #e65100; }
+  .sec-seizou h2::before { background: #e65100; }
+  .sec-kanryo h2 { color: #9e9e9e; }
+  .sec-kanryo h2::before { background: #9e9e9e; }
+
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  thead th {
+    padding: 6px 10px; font-size: 13px; font-weight: 600;
+    white-space: nowrap; text-align: center;
+    border-right: 1px solid rgba(255,255,255,.2); color: #fff;
+    cursor: grab; user-select: none;
+  }
+  thead th:last-child { border-right: none; }
+  thead th.drag-over { box-shadow: inset -3px 0 0 #fff; }
+  thead th.dragging { opacity: .4; }
+  tbody td {
+    padding: 8px 10px; white-space: nowrap; vertical-align: middle;
+    text-align: center; border-right: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0;
+  }
+  tbody td:last-child { border-right: none; }
+
+  td[contenteditable="true"] { cursor: text; outline: none; }
+  td[contenteditable="true"]:focus { background: #e3f2fd !important; box-shadow: inset 0 0 0 2px #1a73e8; }
+  td[contenteditable="true"]:hover { background: #f5f5f5; }
+
+  .tbl-kessoku thead th { background: #c62828; }
+  .tbl-kessoku tbody tr { background: #fff; }
+  .tbl-kessoku tbody tr:nth-child(even) { background: #fff8f8; }
+  .tbl-kessoku tbody td { font-size: 18px; padding: 10px 12px; }
+  .tbl-kessoku .cust { font-weight: 800; font-size: 22px; text-align: left !important; }
+  .tbl-kessoku .bnum { font-weight: 900; font-size: 24px; }
+  .tbl-kessoku .dim { font-weight: 700; font-size: 18px; }
+  .tbl-kessoku .rmk { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: 14px; color: #795548; }
+
+  .tbl-seizou thead th { background: #e65100; }
+  .tbl-seizou tbody tr { background: #fff; }
+  .tbl-seizou tbody tr:nth-child(even) { background: #fff8f0; }
+  .tbl-seizou tbody td { font-size: 16px; }
+  .tbl-seizou .cust { font-weight: 700; font-size: 18px; text-align: left !important; }
+  .tbl-seizou .bnum { font-weight: 800; font-size: 20px; }
+  .tbl-seizou .dim { font-weight: 600; font-size: 16px; }
+  .tbl-seizou .rmk { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: 13px; color: #795548; }
+
+  .tbl-kanryo thead th { background: #78909c; }
+  .tbl-kanryo tbody tr { background: #fafafa; opacity: .45; }
+  .tbl-kanryo tbody td { font-size: 14px; color: #999; }
+  .tbl-kanryo .cust { font-weight: 600; font-size: 15px; text-align: left !important; }
+  .tbl-kanryo .bnum { font-weight: 800; font-size: 16px; }
+  .tbl-kanryo .dim { font-weight: 600; font-size: 14px; }
+  .tbl-kanryo .rmk { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: 12px; }
+
+  .hm-F { background: #1565c0; }
+  .hm-P { background: #2e7d32; }
+  .hm-N { background: #e65100; }
+  .hm-S { background: #6a1b9a; }
+  .sel-hm { padding: 2px 6px; border-radius: 4px; font-weight: 700; color: #fff; border: 1px solid transparent; cursor: pointer; appearance: auto; }
+  .cb-zaiko { width: 18px; height: 18px; cursor: pointer; accent-color: #4caf50; }
+  .cb-seal { width: 18px; height: 18px; cursor: pointer; accent-color: #d32f2f; }
+  .sel {
+    font-weight: 700; border: 1px solid transparent; border-radius: 4px;
+    cursor: pointer; appearance: auto; text-align: center;
+  }
+  .sel:focus { outline: 2px solid #1a73e8; }
+  .sel-ord { width: 44px; padding: 4px 2px; font-size: 16px; background: #f0f0f0; border-radius: 20px; }
+  .sel-jun { width: 48px; padding: 4px 2px; font-size: 15px; font-weight: 800; background: #fff3e0; color: #e65100; border-radius: 6px; }
+
+  .btn-del {
+    background: none; border: 1px solid #ccc; color: #999; border-radius: 4px;
+    padding: 2px 8px; font-size: 12px; cursor: pointer;
+  }
+  .btn-del:hover { background: #ffebee; color: #d32f2f; border-color: #d32f2f; }
+  .btn-restore {
+    background: none; border: 1px solid #4caf50; color: #4caf50; border-radius: 4px;
+    padding: 2px 8px; font-size: 12px; cursor: pointer;
+  }
+  .btn-restore:hover { background: #e8f5e9; }
+  .archive-toggle {
+    background: none; border: 1px solid #bbb; color: #888; border-radius: 6px;
+    padding: 4px 12px; font-size: 13px; cursor: pointer; margin-left: 8px;
+  }
+  .archive-toggle:hover { background: #eee; }
+  .tbl-archive thead th { background: #607d8b; }
+  .tbl-archive tbody tr { background: #f9f9f9; opacity: .35; }
+  .tbl-archive tbody td { font-size: 13px; color: #aaa; }
+  .tbl-archive .cust { font-weight: 600; font-size: 14px; text-align: left !important; }
+  .btn-add {
+    background: #e65100; border: none; color: #fff; border-radius: 6px;
+    padding: 4px 12px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 8px;
+  }
+  .btn-add:hover { background: #bf360c; }
+  .sec-empty { padding: 10px 16px; color: var(--text-sub); font-size: 14px; }
+  .loading { display: flex; align-items: center; justify-content: center; height: 200px; color: var(--text-sub); gap: 10px; }
+  .spinner { width: 24px; height: 24px; border: 3px solid #ddd; border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { text-align: center; padding: 40px; color: #d32f2f; }
+  .error-msg button { margin-top: 8px; padding: 6px 16px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>加工予定表</h1>
+  <div class="header-right">
+    <span id="lastUpdated"></span>
+    <button class="btn" onclick="loadData()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      更新
+    </button>
+  </div>
+</div>
+<div class="main" id="mainArea">
+  <div class="loading"><div class="spinner"></div>読み込み中...</div>
+</div>
+<script>
+const SHEET_ID = '1bWHsrvtASjhEO5PFrCtxZW8Ar42ml-bBHrhHPoVwQzg';
+const GID = 0;
+const EDITS_KEY = 'kakou_edits';
+const COLORDER_KEY = 'kakou_colorder';
+const ARCHIVE_KEY = 'kakou_archive';
+
+// Column definitions: id, header label, cell renderer fn name
+const DEFAULT_COLS = ['jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
+const COL_LABELS = {jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工済在庫',remark:'備考'};
+
+let allItems = [];
+
+function getEdits() { try { return JSON.parse(localStorage.getItem(EDITS_KEY)||'{}'); } catch { return {}; } }
+function saveEdit(key, field, val) {
+  const ed = getEdits(); if (!ed[key]) ed[key] = {}; ed[key][field] = val;
+  localStorage.setItem(EDITS_KEY, JSON.stringify(ed));
+}
+function getVal(it, field) {
+  const ed = getEdits(), k = itemKey(it);
+  if (ed[k] && ed[k][field] !== undefined) return ed[k][field];
+  return it[field];
+}
+function itemKey(it) { return `${it._row}_${it.customer}_${it.hinmei}`; }
+
+function getColOrder() {
+  try { const o = JSON.parse(localStorage.getItem(COLORDER_KEY)); return o && o.length ? o : DEFAULT_COLS; }
+  catch { return DEFAULT_COLS; }
+}
+function saveColOrder(cols) { localStorage.setItem(COLORDER_KEY, JSON.stringify(cols)); }
+
+function getArchive() { try { return JSON.parse(localStorage.getItem(ARCHIVE_KEY)||'[]'); } catch { return []; } }
+function archiveItem(key) {
+  const arc = getArchive();
+  if (!arc.includes(key)) arc.push(key);
+  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arc));
+}
+function restoreItem(key) {
+  const arc = getArchive().filter(k => k !== key);
+  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arc));
+}
+function isArchived(key) { return getArchive().includes(key); }
+let showArchive = false;
+
+async function loadData() {
+  const main = document.getElementById('mainArea');
+  main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}&range=A1:O50`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('読み込み失敗');
+    allItems = parseCSV(await res.text());
+    render();
+    document.getElementById('lastUpdated').textContent =
+      new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
+  } catch (err) {
+    main.innerHTML = `<div class="error-msg"><p>${err.message}</p><button onclick="loadData()">再読み込み</button></div>`;
+  }
+}
+
+function parseCSV(csv) {
+  const lines = csv.split('\n').map(parseLine).filter(Boolean);
+  if (lines.length < 2) return [];
+  const items = [];
+  for (let i = 1; i < lines.length; i++) {
+    const r = lines[i], c = idx => (r[idx]||'').replace(/"/g,'').trim();
+    const customer = c(2); if (!customer) continue;
+    items.push({ _row:i, order:c(0), checked:c(1).toUpperCase()==='TRUE',
+      customer, hinmei:c(3), grade:c(4), thickness:c(5), width:c(6), length:c(7),
+      qty:c(8), planned:c(9), actual:c(10), seal:c(11), danball:c(12), deadline:c(13), remark:c(14) });
+  }
+  return items;
+}
+function parseLine(line) {
+  const result=[]; let cur='',inQ=false;
+  for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(c===','&&!inQ){result.push(cur);cur='';}else cur+=c;}
+  result.push(cur); return result;
+}
+
+// ===== Cell renderers =====
+const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
+const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
+function genSel(it,field,options,size,cls){
+  const cur=String(getVal(it,field));
+  const inList = options.some(v => String(v) === cur);
+  let opts = options.map(v=>`<option value="${v}" ${cur===String(v)?'selected':''}>${v}</option>`).join('');
+  if (!inList && cur) opts += `<option value="${cur}" selected>${cur}</option>`;
+  opts += `<option value="__other__">その他...</option>`;
+  return `<select class="sel ${cls||''}" style="font-size:${size}px" data-key="${itemKey(it)}" data-field="${field}" onchange="onGenSelChange(this)">${opts}</select>`;
+}
+function cellRenderers(it, sz) {
+  const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const k=itemKey(it), ea=(f)=>`contenteditable="true" data-key="${k}" data-field="${f}" onblur="onCellEdit(this)"`;
+  const cur=getVal(it,'hinmei'), thick=getVal(it,'thickness');
+  const is12=cur==='F'&&String(thick)==='12';
+  const bgMap={F:is12?'#f9a825':'#1565c0',P:'#2e7d32',N:'#e65100',S:'#6a1b9a'};
+  const bg=bgMap[cur]||'#999', tc=is12?'#333':'#fff';
+  const junCur=getVal(it,'kessoku_jun')||'';
+  const ordCur=getVal(it,'order');
+  const av=getVal(it,'actual');
+
+  return {
+    jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option><option value="1" ${junCur==='1'?'selected':''}>1</option><option value="2" ${junCur==='2'?'selected':''}>2</option><option value="3" ${junCur==='3'?'selected':''}>3</option></select>`,
+    order: `<select class="sel sel-ord" style="font-size:${sz}px" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
+    customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
+    hinmei: `<select class="sel sel-hm" style="font-size:${sz}px;background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
+    grade: genSel(it,'grade',gradeOpts,sz,''),
+    thickness: genSel(it,'thickness',['-','12','15'],sz,'dim'),
+    width: genSel(it,'width',['-','120','150'],sz,'dim'),
+    length: genSel(it,'length',['-','910','1820','2000','3000','4000'],sz,'dim'),
+    qty: genSel(it,'qty',['-','8','10','20','40'],sz,''),
+    planned: genSel(it,'planned',numOpts,sz,'bnum'),
+    actual: genSel(it,'actual',numOpts,sz,'bnum'),
+    seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
+    danball: `<input type="checkbox" class="cb-seal" ${getVal(it,'danball')==='有'?'checked':''} data-key="${k}" data-field="danball" onchange="onSealChange(this)">`,
+    ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
+    tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
+    zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
+    remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
+  };
+}
+
+function buildRow(it, sz, cols) {
+  const r = cellRenderers(it, sz);
+  // customer, actual, remark already include <td> tags
+  const wrap = (col) => {
+    if (col === 'customer' || col === 'remark') return r[col];
+    return `<td>${r[col]}</td>`;
+  };
+  return '<tr>' + cols.map(wrap).join('') + '</tr>';
+}
+
+function buildHead(cols, tableId) {
+  return '<thead><tr>' + cols.map((c,i) =>
+    `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="${tableId}">${COL_LABELS[c]||c}</th>`
+  ).join('') + '</tr></thead>';
+}
+
+function render() {
+  const main = document.getElementById('mainArea');
+  const cols = getColOrder();
+  // Filter: 製造完了 doesn't have jun column
+  const kanryoCols = cols.filter(c => c !== 'jun');
+
+  const items = allItems.map(it => {
+    const ord = parseInt(getVal(it,'order'));
+    const jun = getVal(it,'kessoku_jun') || '';
+    return { ...it, _ord: isNaN(ord)?99:ord, _jun: jun };
+  });
+
+  const kanryo = items.filter(i => i._ord >= 9);
+  const underNine = items.filter(i => i._ord < 9);
+  const kessoku = underNine.filter(i => i._jun).sort((a,b)=>parseInt(a._jun)-parseInt(b._jun));
+  const seizouchu = underNine;
+
+  let html = '<div class="main-content">';
+
+  // 結束順
+  const kessokuCols = cols.filter(c => c !== 'zaiko');
+  html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
+  if (kessoku.length) {
+    html += `<table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
+    kessoku.forEach(it => { html += buildRow(it, 16, kessokuCols); });
+    html += '</tbody></table>';
+  } else {
+    html += '<div class="sec-empty">結束予定なし — 製造中の「結束順」で番号を選ぶと表示されます</div>';
+  }
+
+  // 製造中
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button></div>`;
+  if (seizouchu.length) {
+    html += `<table class="tbl-seizou" id="tbl-seizou"><thead><tr>`;
+    cols.forEach((c,i) => { html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou">${COL_LABELS[c]||c}</th>`; });
+    html += `<th></th></tr></thead><tbody>`;
+    seizouchu.forEach((it, idx) => {
+      const k = itemKey(it);
+      const cust = getVal(it, 'customer');
+      const isLastEmpty = idx === seizouchu.length - 1 && (!cust || !cust.trim());
+      const delBtn = isLastEmpty ? `<button class="btn-del" onclick="onDeleteRow('${k}')">削除</button>` : '';
+      html += buildRow(it, 14, cols).replace('</tr>', `<td>${delBtn}</td></tr>`);
+    });
+    html += '</tbody></table>';
+  } else {
+    html += '<div class="sec-empty">製造中なし</div>';
+  }
+
+  html += '</div>';
+  html += '<div class="kanryo-spacer"></div>';
+  html += '<div class="kanryo-section">';
+
+  // 製造完了 (exclude archived)
+  const kanryoVisible = kanryo.filter(i => !isArchived(itemKey(i)));
+  const kanryoArchived = kanryo.filter(i => isArchived(itemKey(i)));
+
+  html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span></div>`;
+  if (kanryoVisible.length) {
+    html += `<table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
+    kanryoCols.forEach((c,i) => {
+      html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
+    });
+    html += `<th></th></tr></thead><tbody>`;
+    kanryoVisible.forEach(it => {
+      const k = itemKey(it);
+      html += buildRow(it, 12, kanryoCols).replace('</tr>', `<td><button class="btn-del" onclick="onArchive('${k}')">削除</button></td></tr>`);
+    });
+    html += '</tbody></table>';
+  } else {
+    html += '<div class="sec-empty">製造完了なし</div>';
+  }
+
+  // アーカイブ
+  html += `<div class="sec-head" style="padding-top:12px">
+    <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>アーカイブ</h2>
+    <span class="count">${kanryoArchived.length}件</span>
+    ${kanryoArchived.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
+  </div>`;
+  if (showArchive && kanryoArchived.length) {
+    html += `<table class="tbl-archive"><thead><tr>`;
+    kanryoCols.forEach(c => { html += `<th>${COL_LABELS[c]||c}</th>`; });
+    html += `<th></th></tr></thead><tbody>`;
+    kanryoArchived.forEach(it => {
+      const k = itemKey(it);
+      const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      html += `<tr>
+        <td>${e2(getVal(it,'order'))}</td>
+        <td class="cust">${e2(getVal(it,'customer'))}</td>
+        <td>${e2(getVal(it,'hinmei'))}</td>
+        <td>${e2(getVal(it,'grade'))}</td>
+        <td>${e2(getVal(it,'thickness'))}</td>
+        <td>${e2(getVal(it,'width'))}</td>
+        <td>${e2(getVal(it,'length'))}</td>
+        <td>${e2(getVal(it,'qty'))}</td>
+        <td>${e2(getVal(it,'planned'))}</td>
+        <td>${e2(getVal(it,'actual'))||'-'}</td>
+        <td>${getVal(it,'seal')==='有'?'有':''}</td>
+        <td>${getVal(it,'danball')==='有'?'有':''}</td>
+        <td>${getVal(it,'ryoutan')==='1'?'有':''}</td>
+        <td>${getVal(it,'tosou')==='1'?'有':''}</td>
+        <td>${getVal(it,'zaiko')==='1'?'有':''}</td>
+        <td>${e2(getVal(it,'remark'))||''}</td>
+        <td><button class="btn-restore" onclick="onRestore('${k}')">戻す</button></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+  }
+
+  html += '</div>';
+  main.innerHTML = html;
+  initDrag();
+}
+
+// ===== Drag & drop columns =====
+let dragCol = null;
+function initDrag() {
+  document.querySelectorAll('thead th[draggable]').forEach(th => {
+    th.addEventListener('dragstart', e => {
+      dragCol = th.dataset.col;
+      th.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    th.addEventListener('dragend', () => {
+      th.classList.remove('dragging');
+      document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    });
+    th.addEventListener('dragover', e => { e.preventDefault(); th.classList.add('drag-over'); });
+    th.addEventListener('dragleave', () => { th.classList.remove('drag-over'); });
+    th.addEventListener('drop', e => {
+      e.preventDefault();
+      th.classList.remove('drag-over');
+      const targetCol = th.dataset.col;
+      if (dragCol && dragCol !== targetCol) {
+        const cols = getColOrder();
+        const fromIdx = cols.indexOf(dragCol);
+        const toIdx = cols.indexOf(targetCol);
+        if (fromIdx !== -1 && toIdx !== -1) {
+          cols.splice(fromIdx, 1);
+          cols.splice(toIdx, 0, dragCol);
+          saveColOrder(cols);
+          render();
+        }
+      }
+      dragCol = null;
+    });
+  });
+}
+
+// ===== Event handlers =====
+function onCellEdit(el) { saveEdit(el.dataset.key, el.dataset.field, el.textContent.trim()); render(); }
+function onSealChange(el) { saveEdit(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
+function onGenSelChange(el) {
+  if (el.value === '__other__') {
+    const v = prompt('値を入力してください');
+    if (v !== null && v.trim()) {
+      saveEdit(el.dataset.key, el.dataset.field, v.trim());
+    }
+  } else {
+    saveEdit(el.dataset.key, el.dataset.field, el.value);
+  }
+  render();
+}
+function onOrdChange(el) { saveEdit(el.dataset.key, 'order', el.value); render(); }
+function onJunChange(el) { saveEdit(el.dataset.key, 'kessoku_jun', el.value); render(); }
+function onHmChange(el) { saveEdit(el.dataset.key, 'hinmei', el.value); render(); }
+function onZaikoChange(el) { saveEdit(el.dataset.key, el.dataset.field, el.checked?'1':''); }
+function onArchive(key) { archiveItem(key); render(); }
+function onRestore(key) { restoreItem(key); render(); }
+function toggleArchive() { showArchive = !showArchive; render(); }
+
+const DELETED_KEY = 'kakou_deleted';
+function getDeleted() { try { return JSON.parse(localStorage.getItem(DELETED_KEY)||'[]'); } catch { return []; } }
+function deleteRow(key) {
+  const d = getDeleted(); if (!d.includes(key)) d.push(key);
+  localStorage.setItem(DELETED_KEY, JSON.stringify(d));
+}
+function isDeleted(key) { return getDeleted().includes(key); }
+
+function onDeleteRow(key) {
+  allItems = allItems.filter(it => itemKey(it) !== key);
+  render();
+}
+
+let addRowCount = 0;
+function onAddRow() {
+  addRowCount++;
+  const newRow = {
+    _row: 900 + addRowCount, order: '0', checked: false,
+    customer: '', hinmei: '-', grade: '-',
+    thickness: '-', width: '-', length: '-',
+    qty: '-', planned: '-', actual: '-',
+    seal: '無', danball: '無', deadline: '', remark: ''
+  };
+  allItems.push(newRow);
+  render();
+}
+
+setInterval(loadData, 5*60*1000);
+loadData();
+</script>
+</body>
+</html>
