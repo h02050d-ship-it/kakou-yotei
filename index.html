@@ -455,6 +455,28 @@ function render() {
   html += '</div>';
   main.innerHTML = html;
   initDrag();
+  initCellNav();
+}
+
+function initCellNav() {
+  document.querySelectorAll('td[contenteditable="true"]').forEach(td => {
+    td.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        td.blur();
+        // 下のセルに移動
+        const tr = td.closest('tr');
+        const idx = Array.from(tr.children).indexOf(td);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+          const nextCell = nextRow.children[idx];
+          if (nextCell && nextCell.getAttribute('contenteditable') === 'true') {
+            nextCell.focus();
+          }
+        }
+      }
+    });
+  });
 }
 
 // ===== Drag & drop columns =====
