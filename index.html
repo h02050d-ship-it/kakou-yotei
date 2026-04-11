@@ -172,6 +172,7 @@
   .modal .note { padding: 10px 20px; font-size: 13px; color: #d32f2f; font-weight: 600; }
 
   .cb-check { width: 20px; height: 20px; cursor: pointer; accent-color: #1a73e8; }
+  .zaiko-on { background: #e0f7fa !important; }
 </style>
 </head>
 <body>
@@ -317,8 +318,8 @@ function cellRenderers(it, sz) {
     width: genSel(it,'width',['120','150'],sz,'dim'),
     length: genSel(it,'length',['-','910','1820','2000','3000','4000'],sz,'dim'),
     qty: genSel(it,'qty',['-','8','10','20','40'],sz,''),
-    planned: genSel(it,'planned',numOpts,sz,'bnum'),
-    actual: genSel(it,'actual',numOpts,sz,'bnum'),
+    planned: genSel(it,'planned',numOpts,sz,'bnum' + (getVal(it,'zaiko')==='1'?' zaiko-on':'')),
+    actual: genSel(it,'actual',numOpts,sz,'bnum' + (getVal(it,'zaiko')==='1'?' zaiko-on':'')),
     seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
     danball: `<input type="checkbox" class="cb-seal" ${getVal(it,'danball')==='有'?'checked':''} data-key="${k}" data-field="danball" onchange="onSealChange(this)">`,
     ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
@@ -464,15 +465,39 @@ function initCellNav() {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         td.blur();
-        // 下のセルに移動
         const tr = td.closest('tr');
         const idx = Array.from(tr.children).indexOf(td);
         const nextRow = tr.nextElementSibling;
         if (nextRow) {
           const nextCell = nextRow.children[idx];
-          if (nextCell && nextCell.getAttribute('contenteditable') === 'true') {
+          if (!nextCell) return;
+          // contenteditable cell
+          if (nextCell.getAttribute('contenteditable') === 'true') {
             nextCell.focus();
+          } else {
+            // select or input inside the cell
+            const input = nextCell.querySelector('select, input, [contenteditable="true"]');
+            if (input) input.focus();
           }
+        }
+      }
+    });
+  });
+  // selectでもEnterで下に移動
+  document.querySelectorAll('select.sel').forEach(sel => {
+    sel.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const td = sel.closest('td');
+        const tr = td.closest('tr');
+        const idx = Array.from(tr.children).indexOf(td);
+        const nextRow = tr.nextElementSibling;
+        if (nextRow) {
+          const nextCell = nextRow.children[idx];
+          if (!nextCell) return;
+          const input = nextCell.querySelector('select, input, [contenteditable="true"]');
+          if (input) input.focus();
+          else if (nextCell.getAttribute('contenteditable') === 'true') nextCell.focus();
         }
       }
     });
@@ -536,7 +561,7 @@ function onGenSelChange(el) {
 function onOrdChange(el) { saveEdit(el.dataset.key, 'order', el.value); render(); }
 function onJunChange(el) { saveEdit(el.dataset.key, 'kessoku_jun', el.value); render(); }
 function onHmChange(el) { saveEdit(el.dataset.key, 'hinmei', el.value); render(); }
-function onZaikoChange(el) { saveEdit(el.dataset.key, el.dataset.field, el.checked?'1':''); }
+function onZaikoChange(el) { saveEdit(el.dataset.key, el.dataset.field, el.checked?'1':''); render(); }
 function onArchive(key) { archiveItem(key); render(); }
 function onRestore(key) { restoreItem(key); render(); }
 function toggleArchive() { showArchive = !showArchive; render(); }
