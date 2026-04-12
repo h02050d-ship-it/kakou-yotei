@@ -208,94 +208,96 @@
 <div class="main" id="mainArea">
   <div class="loading"><div class="spinner"></div>読み込み中...</div>
 </div>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
-const SHEET_ID = '1bWHsrvtASjhEO5PFrCtxZW8Ar42ml-bBHrhHPoVwQzg';
-const GID = 0;
-const EDITS_KEY = 'kakou_edits';
-const COLORDER_KEY = 'kakou_colorder';
-const ARCHIVE_KEY = 'kakou_archive';
-const ADDEDROWS_KEY = 'kakou_addedrows';
+// Firebase config
+const firebaseConfig = {
+  apiKey: "AIzaSyBkpsxdYciMiLmsBfHNWRL7OFniSsssQwA",
+  authDomain: "kakou-yotei.firebaseapp.com",
+  databaseURL: "https://kakou-yotei-default-rtdb.firebaseio.com",
+  projectId: "kakou-yotei",
+  storageBucket: "kakou-yotei.firebasestorage.app",
+  messagingSenderId: "633993422136",
+  appId: "1:633993422136:web:a8c9f47c35fead59840dcd"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-// Column definitions: id, header label, cell renderer fn name
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
 const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工済在庫',remark:'備考'};
 
 let allItems = [];
-
-function getEdits() { try { return JSON.parse(localStorage.getItem(EDITS_KEY)||'{}'); } catch { return {}; } }
-function saveEdit(key, field, val) {
-  const ed = getEdits(); if (!ed[key]) ed[key] = {}; ed[key][field] = val;
-  localStorage.setItem(EDITS_KEY, JSON.stringify(ed));
-}
-function getVal(it, field) {
-  const ed = getEdits(), k = itemKey(it);
-  if (ed[k] && ed[k][field] !== undefined) return ed[k][field];
-  return it[field];
-}
-function itemKey(it) {
-  if (!it._uid) it._uid = `${it._row}_${it.customer}_${it.hinmei}_${it.grade}_${it.thickness}_${it.length}`;
-  return it._uid;
-}
-
-function getColOrder() {
-  try { const o = JSON.parse(localStorage.getItem(COLORDER_KEY)); return o && o.length ? o : DEFAULT_COLS; }
-  catch { return DEFAULT_COLS; }
-}
-function saveColOrder(cols) { localStorage.setItem(COLORDER_KEY, JSON.stringify(cols)); }
-
-function getArchive() { try { return JSON.parse(localStorage.getItem(ARCHIVE_KEY)||'[]'); } catch { return []; } }
-function archiveItem(key) {
-  const arc = getArchive();
-  if (!arc.includes(key)) arc.push(key);
-  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arc));
-}
-function restoreItem(key) {
-  const arc = getArchive().filter(k => k !== key);
-  localStorage.setItem(ARCHIVE_KEY, JSON.stringify(arc));
-}
-function isArchived(key) { return getArchive().includes(key); }
+let colOrder = DEFAULT_COLS.slice();
 let showArchive = false;
 
-function getAddedRows() { try { return JSON.parse(localStorage.getItem(ADDEDROWS_KEY)||'[]'); } catch { return []; } }
+function itemKey(it) {
+  if (!it._uid) it._uid = it._uid || `${it._row}_${it.customer}_${it.hinmei}_${it.grade}_${it.thickness}_${it.length}`;
+  return it._uid;
+}
+function getVal(it, field) { return it[field] || ''; }
 
-async function loadData() {
+// Save single item to Firebase
+function saveItem(it) {
+  const k = itemKey(it);
+  const data = {};
+  ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
+   'seal','danball','ryoutan','tosou','zaiko','dblcheck','kessoku_jun','remark','archived'].forEach(f => {
+    if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
+  });
+  db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
+}
+
+function saveField(key, field, val) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (it) { it[field] = val; saveItem(it); }
+}
+
+function saveColOrder(cols) {
+  colOrder = cols;
+  db.ref('settings/colOrder').set(cols);
+}
+function saveRowOrder(order) { db.ref('settings/rowOrder').set(order); }
+
+// Load all data from Firebase and listen for changes
+function loadData() {
   const main = document.getElementById('mainArea');
   main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${GID}&range=A1:O50`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('読み込み失敗');
-    allItems = parseCSV(await res.text());
-    // 追加行を復元
-    const added = getAddedRows();
-    added.forEach(r => allItems.push(r));
-    applyRowOrder();
-    render();
-    document.getElementById('lastUpdated').textContent =
-      new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
-  } catch (err) {
-    main.innerHTML = `<div class="error-msg"><p>${err.message}</p><button onclick="loadData()">再読み込み</button></div>`;
-  }
-}
 
-function parseCSV(csv) {
-  const lines = csv.split('\n').map(parseLine).filter(Boolean);
-  if (lines.length < 2) return [];
-  const items = [];
-  for (let i = 1; i < lines.length; i++) {
-    const r = lines[i], c = idx => (r[idx]||'').replace(/"/g,'').trim();
-    const customer = c(2); if (!customer) continue;
-    items.push({ _row:i, order:c(0), checked:c(1).toUpperCase()==='TRUE',
-      customer, hinmei:c(3), grade:c(4), thickness:c(5), width:c(6), length:c(7),
-      qty:c(8), planned:c(9), actual:c(10), seal:c(11), danball:c(12), deadline:c(13), remark:c(14) });
-  }
-  return items;
+  // Listen for real-time changes
+  db.ref('items').on('value', snap => {
+    const data = snap.val() || {};
+    allItems = Object.values(data).map(it => {
+      it._uid = it._uid || Object.keys(data).find(k => data[k] === it);
+      return it;
+    });
+
+    // Apply row order
+    db.ref('settings/rowOrder').once('value', roSnap => {
+      const order = roSnap.val() || [];
+      if (order.length) {
+        allItems.sort((a, b) => {
+          const ai = order.indexOf(itemKey(a));
+          const bi = order.indexOf(itemKey(b));
+          if (ai === -1 && bi === -1) return 0;
+          if (ai === -1) return 1;
+          if (bi === -1) return -1;
+          return ai - bi;
+        });
+      }
+      render();
+      document.getElementById('lastUpdated').textContent =
+        new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
+    });
+  });
+
+  // Listen for col order changes
+  db.ref('settings/colOrder').on('value', snap => {
+    const c = snap.val();
+    if (c && c.length) colOrder = c;
+  });
 }
-function parseLine(line) {
-  const result=[]; let cur='',inQ=false;
-  for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(c===','&&!inQ){result.push(cur);cur='';}else cur+=c;}
-  result.push(cur); return result;
-}
+function getColOrder() { return colOrder; }
 
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
@@ -547,9 +549,6 @@ function initDrag() {
 }
 
 // ===== Row drag & drop =====
-const ROWORDER_KEY = 'kakou_roworder';
-function getRowOrder() { try { return JSON.parse(localStorage.getItem(ROWORDER_KEY)||'[]'); } catch { return []; } }
-function saveRowOrder(order) { localStorage.setItem(ROWORDER_KEY, JSON.stringify(order)); }
 
 let dragRowKey = null;
 let dragTr = null;
@@ -641,116 +640,73 @@ function initRowDrag() {
   });
 }
 
-// loadData後に並び順を復元
-function applyRowOrder() {
-  const order = getRowOrder();
-  if (!order.length) return;
-  allItems.sort((a, b) => {
-    const ai = order.indexOf(itemKey(a));
-    const bi = order.indexOf(itemKey(b));
-    if (ai === -1 && bi === -1) return 0;
-    if (ai === -1) return 1;
-    if (bi === -1) return -1;
-    return ai - bi;
-  });
-}
-
-// ===== Focus restore =====
-let pendingFocus = null;
-function renderAndFocus(key, field, dir) {
-  pendingFocus = { key, field, dir };
-  render();
-}
-
 // ===== Event handlers =====
-function onCellEdit(el) { saveEdit(el.dataset.key, el.dataset.field, el.textContent.trim()); }
-function onSealChange(el) { saveEdit(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
+function onCellEdit(el) { saveField(el.dataset.key, el.dataset.field, el.textContent.trim()); }
+function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 function onGenSelChange(el) {
   if (el.value === '__other__') {
     const v = prompt('値を入力してください');
     if (v !== null && v.trim()) {
-      saveEdit(el.dataset.key, el.dataset.field, v.trim());
+      saveField(el.dataset.key, el.dataset.field, v.trim());
     }
   } else {
-    saveEdit(el.dataset.key, el.dataset.field, el.value);
-    // 長さ変更時に入数を自動設定
+    saveField(el.dataset.key, el.dataset.field, el.value);
     if (el.dataset.field === 'length') {
-      if (el.value === '3000') saveEdit(el.dataset.key, 'qty', '10');
-      else if (el.value === '4000') saveEdit(el.dataset.key, 'qty', '8');
+      if (el.value === '3000') saveField(el.dataset.key, 'qty', '10');
+      else if (el.value === '4000') saveField(el.dataset.key, 'qty', '8');
     }
   }
-  render();
 }
-function onOrdChange(el) { saveEdit(el.dataset.key, 'order', el.value); render(); }
-function onJunChange(el) { saveEdit(el.dataset.key, 'kessoku_jun', el.value); render(); }
-function onHmChange(el) { saveEdit(el.dataset.key, 'hinmei', el.value); render(); }
-function onZaikoChange(el) { saveEdit(el.dataset.key, el.dataset.field, el.checked?'1':''); render(); }
-function onArchive(key) { archiveItem(key); render(); }
-function onRestore(key) { restoreItem(key); render(); }
+function onOrdChange(el) { saveField(el.dataset.key, 'order', el.value); }
+function onJunChange(el) { saveField(el.dataset.key, 'kessoku_jun', el.value); }
+function onHmChange(el) { saveField(el.dataset.key, 'hinmei', el.value); }
+function onZaikoChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'1':''); }
+
+function isArchived(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  return it && it.archived === '1';
+}
+function onArchive(key) { saveField(key, 'archived', '1'); }
+function onRestore(key) { saveField(key, 'archived', ''); }
 function toggleArchive() { showArchive = !showArchive; render(); }
 
-const DELETED_KEY = 'kakou_deleted';
-function getDeleted() { try { return JSON.parse(localStorage.getItem(DELETED_KEY)||'[]'); } catch { return []; } }
-function deleteRow(key) {
-  const d = getDeleted(); if (!d.includes(key)) d.push(key);
-  localStorage.setItem(DELETED_KEY, JSON.stringify(d));
-}
-function isDeleted(key) { return getDeleted().includes(key); }
-
 function onDeleteRow(key) {
-  allItems = allItems.filter(it => itemKey(it) !== key);
-  // 追加行からも削除
-  const added = getAddedRows().filter(r => itemKey(r) !== key);
-  localStorage.setItem(ADDEDROWS_KEY, JSON.stringify(added));
-  render();
+  db.ref('items/' + key.replace(/[.#$/\[\]]/g,'_')).remove();
 }
 
 function onAddRow() {
   const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const newRow = {
-    _row: uid, _uid: uid, order: '1', checked: false,
+    _uid: uid, order: '1',
     customer: '', hinmei: 'F', grade: '丸節',
     thickness: '15', width: '120', length: '4000',
     qty: '8', planned: '-', actual: '-',
-    seal: '無', danball: '無', deadline: '', remark: ''
+    seal: '無', danball: '無', remark: ''
   };
-  allItems.push(newRow);
-  // 追加行をlocalStorageに保存して自動更新で消えないように
-  const addedRows = getAddedRows();
-  addedRows.push(newRow);
-  localStorage.setItem(ADDEDROWS_KEY, JSON.stringify(addedRows));
-  render();
+  db.ref('items/' + uid).set(newRow);
 }
 
 // シール・段ボール確認表モーダル
-const SEAL_GID = 1904537458;
-async function showSealModal() {
+function showSealModal() {
   const body = document.getElementById('sealModalBody');
   body.innerHTML = '<div style="padding:20px;text-align:center;color:#888">読み込み中...</div>';
   document.getElementById('sealModal').classList.add('show');
-  try {
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=${SEAL_GID}`;
-    const res = await fetch(url);
-    const csv = await res.text();
-    const lines = csv.split('\n').map(parseLine).filter(Boolean);
-    let html = '<table><thead><tr><th>取引先</th><th>シール</th><th>段ボール（役物）</th></tr></thead><tbody>';
-    for (let i = 1; i < lines.length; i++) {
-      const r = lines[i];
-      const name = (r[0]||'').replace(/"/g,'').trim();
-      if (!name) continue;
-      const seal = (r[1]||'').replace(/"/g,'').trim().toUpperCase() === 'TRUE';
-      const dan = (r[2]||'').replace(/"/g,'').trim().toUpperCase() === 'TRUE';
-      html += `<tr><td>${name}</td><td>${seal?'<span class="mark">&#10003;</span>':''}</td><td>${dan?'<span class="mark">&#10003;</span>':''}</td></tr>`;
+  db.ref('sealList').once('value', snap => {
+    const data = snap.val();
+    if (!data) {
+      body.innerHTML = '<div style="padding:20px;color:#888">データなし（Firebaseにシール表を登録してください）</div>';
+      return;
     }
+    let html = '<table><thead><tr><th>取引先</th><th>シール</th><th>段ボール（役物）</th></tr></thead><tbody>';
+    Object.values(data).forEach(r => {
+      html += `<tr><td>${r.name||''}</td><td>${r.seal?'<span class="mark">&#10003;</span>':''}</td><td>${r.danball?'<span class="mark">&#10003;</span>':''}</td></tr>`;
+    });
     html += '</tbody></table>';
     body.innerHTML = html;
-  } catch(e) {
-    body.innerHTML = '<div style="padding:20px;color:#d32f2f">読み込みに失敗しました</div>';
-  }
+  });
 }
 function closeSealModal() { document.getElementById('sealModal').classList.remove('show'); }
 
-setInterval(loadData, 5*60*1000);
 loadData();
 </script>
 </body>
