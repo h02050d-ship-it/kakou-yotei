@@ -84,7 +84,7 @@
   .tbl-kessoku .cust { font-weight: 800; font-size: clamp(18px, 1.5vw, 28px); text-align: left !important; }
   .tbl-kessoku .bnum { font-weight: 900; font-size: clamp(20px, 1.7vw, 32px); }
   .tbl-kessoku .dim { font-weight: 700; font-size: clamp(18px, 1.5vw, 28px); }
-  .tbl-kessoku .rmk { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: clamp(14px, 1vw, 20px); color: #795548; }
+  .tbl-kessoku .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(14px, 1vw, 20px); color: #795548; }
 
   .tbl-seizou thead th { background: #e65100; }
   .tbl-seizou tbody tr { background: #fff; }
@@ -93,7 +93,7 @@
   .tbl-seizou .cust { font-weight: 700; font-size: clamp(16px, 1.3vw, 24px); text-align: left !important; }
   .tbl-seizou .bnum { font-weight: 800; font-size: clamp(18px, 1.5vw, 28px); }
   .tbl-seizou .dim { font-weight: 600; font-size: clamp(16px, 1.3vw, 24px); }
-  .tbl-seizou .rmk { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); color: #795548; }
+  .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); color: #795548; }
   /* .tbl-seizou tr.ord-not0 { opacity: .45; } */
 
   .tbl-kanryo thead th { background: #78909c; }
@@ -102,7 +102,7 @@
   .tbl-kanryo .cust { font-weight: 600; font-size: clamp(17px, 1.3vw, 28px); text-align: left !important; }
   .tbl-kanryo .bnum { font-weight: 800; font-size: clamp(18px, 1.4vw, 30px); }
   .tbl-kanryo .dim { font-weight: 600; font-size: clamp(16px, 1.2vw, 26px); }
-  .tbl-kanryo .rmk { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); }
+  .tbl-kanryo .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); }
 
   .hm-F { background: #1565c0; }
   .hm-P { background: #2e7d32; }
@@ -230,7 +230,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
-const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工済在庫',remark:'備考'};
+const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工在庫',remark:'備考'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
