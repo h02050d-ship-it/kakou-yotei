@@ -305,13 +305,13 @@ function getColOrder() { return colOrder; }
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
 const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
-function genSel(it,field,options,size,cls){
+function genSel(it,field,options,sz,cls){
   const cur=String(getVal(it,field));
   const inList = options.some(v => String(v) === cur);
   let opts = options.map(v=>`<option value="${v}" ${cur===String(v)?'selected':''}>${v}</option>`).join('');
   if (!inList && cur) opts += `<option value="${cur}" selected>${cur}</option>`;
   opts += `<option value="__other__">その他...</option>`;
-  return `<select class="sel ${cls||''}" style="font-size:${size}px" data-key="${itemKey(it)}" data-field="${field}" onchange="onGenSelChange(this)">${opts}</select>`;
+  return `<select class="sel ${cls||''}" data-key="${itemKey(it)}" data-field="${field}" onchange="onGenSelChange(this)">${opts}</select>`;
 }
 function cellRenderers(it, sz) {
   const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -327,9 +327,9 @@ function cellRenderers(it, sz) {
   return {
     dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
     jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option><option value="1" ${junCur==='1'?'selected':''}>1</option><option value="2" ${junCur==='2'?'selected':''}>2</option><option value="3" ${junCur==='3'?'selected':''}>3</option></select>`,
-    order: `<select class="sel sel-ord" style="font-size:${sz}px" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
+    order: `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
-    hinmei: `<select class="sel sel-hm" style="font-size:${sz}px;background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
+    hinmei: `<select class="sel sel-hm" style="background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
     grade: genSel(it,'grade',gradeOpts,sz,''),
     thickness: genSel(it,'thickness',['-','12','15'],sz,'dim'),
     width: genSel(it,'width',['120','150'],sz,'dim'),
