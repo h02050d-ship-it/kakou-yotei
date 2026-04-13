@@ -232,7 +232,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
-const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',remark:'備考'};
+const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'在庫',remark:'備考'};
 const COL_WIDTHS = {dblcheck:'2%',jun:'3.5%',order:'3.5%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'5%',width:'5%',length:'5.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',remark:'15%'};
 
 let allItems = [];
