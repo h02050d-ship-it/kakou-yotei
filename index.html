@@ -106,16 +106,19 @@
   .hm-P { background: #2e7d32; }
   .hm-N { background: #e65100; }
   .hm-S { background: #6a1b9a; }
-  .sel-hm { padding: 4px 8px; border-radius: 4px; font-weight: 700; color: #fff; border: 1px solid transparent; cursor: pointer; -webkit-appearance: none; appearance: none; }
-  .cb-zaiko { width: 22px; height: 22px; cursor: pointer; accent-color: #4caf50; }
-  .cb-seal { width: 22px; height: 22px; cursor: pointer; accent-color: #d32f2f; }
+  .sel-hm { width: 100%; height: 100%; padding: 0; border-radius: 0; font-weight: 700; font-size: inherit; color: #fff; border: none; cursor: pointer; -webkit-appearance: none; appearance: none; }
+  .cb-zaiko { width: 24px; height: 24px; cursor: pointer; accent-color: #4caf50; }
+  .cb-seal { width: 24px; height: 24px; cursor: pointer; accent-color: #d32f2f; }
+  .cb-check { width: 24px; height: 24px; cursor: pointer; accent-color: #1a73e8; }
   .sel {
-    font-weight: 700; border: 1px solid transparent; border-radius: 4px;
+    width: 100%; height: 100%; padding: 0; margin: 0;
+    font-weight: 700; font-size: inherit; border: none; border-radius: 0;
     cursor: pointer; -webkit-appearance: none; appearance: none; text-align: center;
+    background: transparent;
   }
   .sel:focus { outline: 2px solid #1a73e8; }
-  .sel-ord { width: 44px; padding: 2px 0; font-size: 22px; background: #f0f0f0; border-radius: 20px; }
-  .sel-jun { width: 48px; padding: 2px 0; font-size: 20px; font-weight: 800; background: #fff3e0; color: #e65100; border-radius: 6px; }
+  .sel-ord { background: #f0f0f0; border-radius: 20px; width: auto; padding: 2px 8px; }
+  .sel-jun { background: #fff3e0; color: #e65100; font-weight: 800; border-radius: 6px; width: auto; padding: 2px 8px; }
 
   .btn-del {
     background: none; border: 1px solid #ccc; color: #999; border-radius: 4px;
