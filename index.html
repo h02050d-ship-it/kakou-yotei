@@ -57,7 +57,7 @@
 
   table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
   thead th {
-    padding: 4px 4px; font-size: clamp(14px, 1.1vw, 22px); font-weight: 800;
+    padding: 4px 4px; font-size: clamp(16px, 1.4vw, 28px); font-weight: 800;
     white-space: nowrap; text-align: center;
     border-right: 1px solid rgba(255,255,255,.2); color: #fff;
     cursor: grab; user-select: none; letter-spacing: 0.5px;
@@ -383,7 +383,7 @@ function render() {
   let html = '<div class="main-content">';
 
   // 結束順
-  const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck');
+  const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck' && c !== 'order');
   html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
   if (kessoku.length) {
     html += `<table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
