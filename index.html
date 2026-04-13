@@ -331,7 +331,7 @@ function cellRenderers(it, sz) {
 
   return {
     dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
-    jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option><option value="1" ${junCur==='1'?'selected':''}>1</option><option value="2" ${junCur==='2'?'selected':''}>2</option><option value="3" ${junCur==='3'?'selected':''}>3</option></select>`,
+    jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${junCur===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     order: `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
     hinmei: `<select class="sel sel-hm" style="background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
