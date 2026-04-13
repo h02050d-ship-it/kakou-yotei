@@ -56,7 +56,7 @@
   .sec-kanryo h2::before { background: #9e9e9e; }
 
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; table-layout: fixed; }
   thead th {
     padding: 4px 3px; font-size: clamp(14px, 1.2vw, 22px); font-weight: 800;
     white-space: nowrap; text-align: center;
@@ -113,7 +113,7 @@
   .cb-seal { width: 24px; height: 24px; cursor: pointer; accent-color: #d32f2f; }
   .cb-check { width: 24px; height: 24px; cursor: pointer; accent-color: #1a73e8; }
   .sel {
-    width: auto; height: 100%; padding: 2px 6px; margin: 0;
+    width: 100%; height: 100%; padding: 0 2px; margin: 0;
     font-weight: 700; font-size: inherit; border: none; border-radius: 0;
     cursor: pointer; -webkit-appearance: none; appearance: none; text-align: center;
     background: transparent; overflow: visible; text-overflow: clip;
