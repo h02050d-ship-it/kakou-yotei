@@ -89,10 +89,10 @@
   .tbl-seizou thead th { background: #e65100; }
   .tbl-seizou tbody tr { background: #fff; }
   .tbl-seizou tbody tr:nth-child(even) { background: #fff8f0; }
-  .tbl-seizou tbody td { font-size: clamp(16px, 1.35vw, 26px); padding: 3px 1px; line-height: 1.2; }
-  .tbl-seizou .cust { font-weight: 700; font-size: clamp(16px, 1.35vw, 26px); text-align: left !important; }
-  .tbl-seizou .bnum { font-weight: 800; font-size: clamp(16px, 1.35vw, 26px); }
-  .tbl-seizou .dim { font-weight: 700; font-size: clamp(16px, 1.35vw, 26px); }
+  .tbl-seizou tbody td { font-size: clamp(16px, 1.45vw, 28px); padding: 3px 1px; line-height: 1.2; }
+  .tbl-seizou .cust { font-weight: 700; font-size: clamp(16px, 1.45vw, 28px); text-align: left !important; }
+  .tbl-seizou .bnum { font-weight: 800; font-size: clamp(16px, 1.45vw, 28px); }
+  .tbl-seizou .dim { font-weight: 700; font-size: clamp(16px, 1.45vw, 28px); }
   .tbl-seizou .sel-jun, .tbl-seizou .sel-ord { font-size: clamp(13px, 1vw, 18px); }
   .tbl-seizou .cb-check { width: 18px; height: 18px; }
   .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); color: #795548; }
@@ -233,7 +233,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
 const COL_LABELS = {dblcheck:'確認',jun:'結順','order':'製順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両端',tosou:'塗装',zaiko:'加在',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2.5%',jun:'2.5%',order:'2.5%',customer:'8%',hinmei:'3.5%',grade:'6%',thickness:'5%',width:'5%',length:'5.5%',qty:'4.5%',planned:'5%',actual:'5%',seal:'3%',danball:'3%',ryoutan:'3%',tosou:'3%',zaiko:'3%',remark:'15%'};
+const COL_WIDTHS = {dblcheck:'2%',jun:'2%',order:'2%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'5%',width:'5%',length:'5.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',remark:'18%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
