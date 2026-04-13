@@ -55,9 +55,10 @@
   .sec-kanryo h2 { color: #9e9e9e; }
   .sec-kanryo h2::before { background: #9e9e9e; }
 
-  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 4px; min-width: 900px; }
   thead th {
-    padding: 4px 4px; font-size: clamp(16px, 1.4vw, 28px); font-weight: 800;
+    padding: 6px 4px; font-size: clamp(18px, 1.6vw, 32px); font-weight: 800;
     white-space: nowrap; text-align: center;
     border-right: 1px solid rgba(255,255,255,.2); color: #fff;
     cursor: grab; user-select: none; letter-spacing: 0.5px;
@@ -78,8 +79,8 @@
   .tbl-kessoku thead th { background: #c62828; }
   .tbl-kessoku tbody tr { background: #fff; }
   .tbl-kessoku tbody tr:nth-child(even) { background: #fff8f8; }
-  .tbl-kessoku tbody td { font-size: clamp(24px, 2vw, 40px); padding: 2px 2px; line-height: 1.1; }
-  .tbl-kessoku .cust { font-weight: 800; font-size: clamp(26px, 2.1vw, 42px); text-align: left !important; }
+  .tbl-kessoku tbody td { font-size: clamp(24px, 2vw, 40px); padding: 4px 3px; line-height: 1.2; }
+  .tbl-kessoku .cust { font-weight: 800; font-size: clamp(24px, 2vw, 40px); text-align: left !important; }
   .tbl-kessoku .bnum { font-weight: 900; font-size: clamp(28px, 2.3vw, 46px); }
   .tbl-kessoku .dim { font-weight: 700; font-size: clamp(24px, 2vw, 40px); }
   .tbl-kessoku .rmk { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: clamp(14px, 1vw, 20px); color: #795548; }
@@ -87,8 +88,8 @@
   .tbl-seizou thead th { background: #e65100; }
   .tbl-seizou tbody tr { background: #fff; }
   .tbl-seizou tbody tr:nth-child(even) { background: #fff8f0; }
-  .tbl-seizou tbody td { font-size: clamp(24px, 2vw, 40px); padding: 2px 2px; line-height: 1.1; }
-  .tbl-seizou .cust { font-weight: 700; font-size: clamp(26px, 2.1vw, 42px); text-align: left !important; }
+  .tbl-seizou tbody td { font-size: clamp(24px, 2vw, 40px); padding: 4px 3px; line-height: 1.2; }
+  .tbl-seizou .cust { font-weight: 700; font-size: clamp(24px, 2vw, 40px); text-align: left !important; }
   .tbl-seizou .bnum { font-weight: 800; font-size: clamp(28px, 2.3vw, 46px); }
   .tbl-seizou .dim { font-weight: 600; font-size: clamp(24px, 2vw, 40px); }
   .tbl-seizou .rmk { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left !important; font-size: clamp(13px, 0.9vw, 18px); color: #795548; }
@@ -386,9 +387,9 @@ function render() {
   const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck' && c !== 'order');
   html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
   if (kessoku.length) {
-    html += `<table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
+    html += `<div class="table-scroll"><table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
     kessoku.forEach(it => { html += buildRow(it, 16, kessokuCols); });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   } else {
     html += '<div class="sec-empty">結束予定なし — 製造中の「結束順」で番号を選ぶと表示されます</div>';
   }
@@ -396,7 +397,7 @@ function render() {
   // 製造中
   html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button></div>`;
   if (seizouchu.length) {
-    html += `<table class="tbl-seizou" id="tbl-seizou"><thead><tr><th></th>`;
+    html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th></th>`;
     cols.forEach((c,i) => { html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou">${COL_LABELS[c]||c}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
     seizouchu.forEach((it, idx) => {
@@ -408,7 +409,7 @@ function render() {
       const ordCls = String(getVal(it,'order')) !== '0' ? ' ord-not0' : '';
       html += `<tr draggable="true" data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   } else {
     html += '<div class="sec-empty">製造中なし</div>';
   }
@@ -423,7 +424,7 @@ function render() {
 
   html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span></div>`;
   if (kanryoVisible.length) {
-    html += `<table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
+    html += `<div class="table-scroll"><table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
     kanryoCols.forEach((c,i) => {
       html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
     });
@@ -432,7 +433,7 @@ function render() {
       const k = itemKey(it);
       html += buildRow(it, 12, kanryoCols).replace('</tr>', `<td><button class="btn-del" onclick="onArchive('${k}')">削除</button></td></tr>`);
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   } else {
     html += '<div class="sec-empty">製造完了なし</div>';
   }
@@ -444,7 +445,7 @@ function render() {
     ${kanryoArchived.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
   </div>`;
   if (showArchive && kanryoArchived.length) {
-    html += `<table class="tbl-archive"><thead><tr>`;
+    html += `<div class="table-scroll"><table class="tbl-archive"><thead><tr>`;
     kanryoCols.forEach(c => { html += `<th>${COL_LABELS[c]||c}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
     kanryoArchived.forEach(it => {
@@ -470,7 +471,7 @@ function render() {
         <td><button class="btn-restore" onclick="onRestore('${k}')">戻す</button></td>
       </tr>`;
     });
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   }
 
   html += '</div>';
