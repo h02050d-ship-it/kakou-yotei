@@ -93,6 +93,11 @@
   .tbl-seizou .cust { font-weight: 700; font-size: clamp(16px, 1.4vw, 26px); text-align: left !important; }
   .tbl-seizou .bnum { font-weight: 800; font-size: clamp(20px, 1.7vw, 32px); }
   .tbl-seizou .dim { font-weight: 700; font-size: clamp(18px, 1.5vw, 28px); }
+  .tbl-seizou select[data-field="thickness"] { font-size: clamp(28px, 2.5vw, 48px); }
+  .tbl-seizou select[data-field="width"] { font-size: clamp(22px, 2vw, 38px); }
+  .tbl-seizou select[data-field="length"] { font-size: clamp(20px, 1.7vw, 32px); }
+  .tbl-seizou select[data-field="qty"] { font-size: clamp(22px, 2vw, 38px); }
+  .tbl-seizou select[data-field="grade"] { font-size: clamp(16px, 1.3vw, 24px); }
   .tbl-seizou .sel-jun, .tbl-seizou .sel-ord { font-size: clamp(13px, 1vw, 18px); }
   .tbl-seizou .cb-check { width: 18px; height: 18px; }
   .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); color: #795548; }
@@ -232,7 +237,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
-const COL_LABELS = {dblcheck:'確認',jun:'結順','order':'製順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端',tosou:'塗装',zaiko:'加在',remark:'備考'};
+const COL_LABELS = {dblcheck:'確認',jun:'結順','order':'製順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両端',tosou:'塗装',zaiko:'加在',remark:'備考'};
 const COL_WIDTHS = {dblcheck:'2.5%',jun:'2.5%',order:'2.5%',customer:'8%',hinmei:'3.5%',grade:'6%',thickness:'5%',width:'5%',length:'5.5%',qty:'4.5%',planned:'5%',actual:'5%',seal:'3%',danball:'3%',ryoutan:'3%',tosou:'3%',zaiko:'3%',remark:'15%'};
 
 let allItems = [];
