@@ -233,7 +233,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
 const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シール',danball:'段ボ',ryoutan:'両端切',tosou:'塗装',zaiko:'加工在庫',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2.5%',jun:'3%',order:'3%',customer:'8%',hinmei:'3.5%',grade:'6%',thickness:'5%',width:'5%',length:'5.5%',qty:'4.5%',planned:'5%',actual:'5%',seal:'3%',danball:'3%',ryoutan:'3.5%',tosou:'3%',zaiko:'3.5%',remark:''};
+const COL_WIDTHS = {dblcheck:'2%',jun:'2.5%',order:'2.5%',customer:'7%',hinmei:'3%',grade:'5.5%',thickness:'4%',width:'4.5%',length:'5%',qty:'4%',planned:'4.5%',actual:'4.5%',seal:'2.5%',danball:'2.5%',ryoutan:'3%',tosou:'2.5%',zaiko:'3%',remark:''};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -412,9 +412,9 @@ function render() {
   // 製造中
   html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button></div>`;
   if (seizouchu.length) {
-    html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th></th>`;
+    html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
-    html += `<th></th></tr></thead><tbody>`;
+    html += `<th style="width:2%"></th></tr></thead><tbody>`;
     seizouchu.forEach((it, idx) => {
       const k = itemKey(it);
       const cust = getVal(it, 'customer');
