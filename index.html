@@ -494,17 +494,21 @@ function render() {
   initDrag();
   initRowDrag();
   initCellNav();
-  autoFitCust();
+  autoFitCells();
 }
 
-function autoFitCust() {
-  document.querySelectorAll('.cust').forEach(td => {
-    td.style.fontSize = '';
-    const maxFs = parseFloat(getComputedStyle(td).fontSize);
+function autoFitCells() {
+  document.querySelectorAll('.tbl-kessoku td, .tbl-seizou td, .tbl-kanryo td').forEach(td => {
+    const sel = td.querySelector('select');
+    const el = sel || td;
+    if (!sel && td.getAttribute('contenteditable') !== 'true' && !td.classList.contains('rmk') && !td.classList.contains('cust')) return;
+    el.style.fontSize = '';
+    const maxFs = parseFloat(getComputedStyle(el).fontSize);
     let fs = maxFs;
-    while (td.scrollWidth > td.clientWidth && fs > 10) {
+    const target = sel ? el : td;
+    while (target.scrollWidth > target.clientWidth && fs > 8) {
       fs -= 1;
-      td.style.fontSize = fs + 'px';
+      el.style.fontSize = fs + 'px';
     }
   });
 }
