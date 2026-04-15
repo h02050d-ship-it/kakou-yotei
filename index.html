@@ -454,9 +454,9 @@ function render() {
     html += '<div class="sec-empty">製造完了なし</div>';
   }
 
-  // アーカイブ
+  // 出荷済
   html += `<div class="sec-head" style="padding-top:12px">
-    <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>アーカイブ</h2>
+    <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>出荷済</h2>
     <span class="count">${kanryoArchived.length}件</span>
     ${kanryoArchived.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
   </div>`;
@@ -507,9 +507,18 @@ function autoFitCells() {
     const maxFs = parseFloat(getComputedStyle(el).fontSize);
     let fs = maxFs;
     const target = sel ? el : td;
-    while (target.scrollWidth > target.clientWidth && fs > 8) {
-      fs -= 1;
-      el.style.fontSize = fs + 'px';
+    if (td.classList.contains('rmk')) {
+      // 備考: 2行になるなら1行に収まるまでフォント縮小
+      const lineH = fs * 1.2;
+      while (td.scrollHeight > lineH + 2 && fs > 8) {
+        fs -= 1;
+        td.style.fontSize = fs + 'px';
+      }
+    } else {
+      while (target.scrollWidth > target.clientWidth && fs > 8) {
+        fs -= 1;
+        el.style.fontSize = fs + 'px';
+      }
     }
   });
 }
