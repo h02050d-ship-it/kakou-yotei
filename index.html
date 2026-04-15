@@ -385,7 +385,11 @@ function render() {
     return { ...it, _ord: isNaN(ord)?99:ord, _jun: jun };
   });
 
-  const kanryo = items.filter(i => i._ord >= 9);
+  const kanryo = items.filter(i => i._ord >= 9).sort((a, b) => {
+    const aT = a.completed_at || 0;
+    const bT = b.completed_at || 0;
+    return bT - aT; // 新しい順
+  });
   const underNine = items.filter(i => i._ord < 9);
   const kessoku = underNine.filter(i => i._jun).sort((a,b)=>{
     const ja = parseInt(a._jun), jb = parseInt(b._jun);
@@ -709,7 +713,19 @@ function onGenSelChange(el) {
     }
   }
 }
-function onOrdChange(el) { saveField(el.dataset.key, 'order', el.value); }
+function onOrdChange(el) {
+  const key = el.dataset.key;
+  const val = el.value;
+  const it = allItems.find(i => itemKey(i) === key);
+  // 製造順が9になったら完了日時を記録
+  if (val === '9' && it && it.order !== '9') {
+    it.completed_at = Date.now();
+    it.order = val;
+    saveItem(it);
+  } else {
+    saveField(key, 'order', val);
+  }
+}
 function onJunChange(el) { saveField(el.dataset.key, 'kessoku_jun', el.value); }
 function onHmChange(el) { saveField(el.dataset.key, 'hinmei', el.value); }
 function onZaikoChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'1':''); }
