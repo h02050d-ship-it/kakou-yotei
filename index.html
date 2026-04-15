@@ -105,6 +105,7 @@
   .tbl-kanryo .bnum { font-weight: 800; font-size: clamp(18px, 1.4vw, 30px); }
   .tbl-kanryo .dim { font-weight: 600; font-size: clamp(16px, 1.2vw, 26px); }
   .tbl-kanryo .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); border-right: none !important; font-weight: 700; }
+  .kanryo-scroll { max-height: 160px; overflow-y: auto; }
 
   .hm-F { background: #1565c0; }
   .hm-P { background: #2e7d32; }
@@ -439,7 +440,7 @@ function render() {
 
   html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span></div>`;
   if (kanryoVisible.length) {
-    html += `<div class="table-scroll"><table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
+    html += `<div class="table-scroll kanryo-scroll"><table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
     kanryoCols.forEach((c,i) => {
       html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
     });
