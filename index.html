@@ -509,12 +509,14 @@ function autoFitCells() {
     const target = sel ? el : td;
     if (td.classList.contains('rmk')) {
       // 備考: 1行に収まるギリギリ最大のフォントサイズを探す
-      while (fs > 8) {
-        const lineH = fs * 1.2;
-        if (td.scrollHeight <= lineH + 2) break;
+      // white-space:nowrapで横幅オーバーをチェック
+      const origWs = td.style.whiteSpace;
+      td.style.whiteSpace = 'nowrap';
+      while (td.scrollWidth > td.clientWidth + 1 && fs > 10) {
         fs -= 0.5;
         td.style.fontSize = fs + 'px';
       }
+      td.style.whiteSpace = origWs || '';
     } else {
       while (target.scrollWidth > target.clientWidth && fs > 8) {
         fs -= 1;
