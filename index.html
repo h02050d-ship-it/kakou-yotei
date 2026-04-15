@@ -297,6 +297,7 @@ function loadData() {
         });
       }
       render();
+      syncToSheet();
       document.getElementById('lastUpdated').textContent =
         new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
     });
@@ -757,6 +758,36 @@ function showSealModal() {
   });
 }
 function closeSealModal() { document.getElementById('sealModal').classList.remove('show'); }
+
+// 製造完了データをスプレッドシートに同期
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyE2O2zEk1NDYskaxflVtPReblSOyA5CyjfHTNXAYzK6tX1zgEzRypcFFSjtDy2SWa7wg/exec';
+let syncTimer = null;
+function syncToSheet() {
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    const kanryo = allItems.filter(it => {
+      const ord = parseInt(it.order || '0');
+      return (isNaN(ord) ? 99 : ord) >= 9;
+    }).filter(it => !isArchived(itemKey(it)));
+    const data = kanryo.map(it => ({
+      customer: it.customer || '',
+      hinmei: it.hinmei || '',
+      grade: it.grade || '',
+      thickness: it.thickness || '',
+      width: it.width || '',
+      length: it.length || '',
+      qty: it.qty || '',
+      actual: it.actual || '',
+      remark: it.remark || ''
+    }));
+    fetch(GAS_URL + '?action=syncKanryo', {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(data)
+    }).catch(e => console.log('sync error:', e));
+  }, 2000);
+}
 
 loadData();
 </script>
