@@ -785,9 +785,10 @@ function syncToSheet() {
       const ord = parseInt(it.order || '0');
       return (isNaN(ord) ? 99 : ord) >= 9;
     }).filter(it => !isArchived(itemKey(it)));
+    const hinmeiMap = { F: '桧フローリング', P: '桧羽目板', S: '桧スノコ板', N: 'ナイスオリジナル' };
     const data = kanryo.map(it => ({
       customer: it.customer || '',
-      hinmei: it.hinmei || '',
+      hinmei: hinmeiMap[it.hinmei] || it.hinmei || '',
       grade: it.grade || '',
       thickness: it.thickness || '',
       width: it.width || '',
