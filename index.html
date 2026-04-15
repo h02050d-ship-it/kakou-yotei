@@ -456,9 +456,9 @@ function render() {
     html += '<div class="sec-empty">製造完了なし</div>';
   }
 
-  // 出荷済
+  // 出荷完了
   html += `<div class="sec-head" style="padding-top:12px">
-    <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>出荷済</h2>
+    <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>出荷完了</h2>
     <span class="count">${kanryoArchived.length}件</span>
     ${kanryoArchived.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
   </div>`;
