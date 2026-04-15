@@ -494,6 +494,19 @@ function render() {
   initDrag();
   initRowDrag();
   initCellNav();
+  autoFitCust();
+}
+
+function autoFitCust() {
+  document.querySelectorAll('.cust').forEach(td => {
+    td.style.fontSize = '';
+    const maxFs = parseFloat(getComputedStyle(td).fontSize);
+    let fs = maxFs;
+    while (td.scrollWidth > td.clientWidth && fs > 10) {
+      fs -= 1;
+      td.style.fontSize = fs + 'px';
+    }
+  });
 }
 
 function focusCell(cell) {
