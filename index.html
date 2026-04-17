@@ -220,6 +220,7 @@
 </div>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 // Firebase config
 const firebaseConfig = {
@@ -806,7 +807,13 @@ function syncToSheet() {
   }, 2000);
 }
 
-loadData();
+firebase.auth().onAuthStateChanged(user => {
+  if (user) loadData();
+});
+firebase.auth().signInAnonymously().catch(e => {
+  const main = document.getElementById('mainArea');
+  main.innerHTML = '<div class="error-msg">認証に失敗しました: ' + e.message + '</div>';
+});
 </script>
 </body>
 </html>
