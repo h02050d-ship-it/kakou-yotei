@@ -186,6 +186,7 @@
   .cb-check { width: 20px; height: 20px; cursor: pointer; accent-color: #1a73e8; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
+  .tosou-on { background: #e1bee7 !important; }
 
   /* Row drag */
   .drag-handle {
@@ -361,11 +362,13 @@ function buildRow(it, sz, cols) {
   const r = cellRenderers(it, sz);
   const isZaiko = getVal(it,'zaiko') === '1';
   const isRyoutan = getVal(it,'ryoutan') === '1';
+  const isTosou = getVal(it,'tosou') === '1';
   const wrap = (col) => {
     if (col === 'customer' || col === 'remark') return r[col];
     const classes = [];
     if (isZaiko && (col === 'planned' || col === 'actual')) classes.push('zaiko-on');
     if (isRyoutan && col === 'length') classes.push('ryoutan-on');
+    if (isTosou && col === 'planned') classes.push('tosou-on');
     const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
     return `<td${clsAttr}>${r[col]}</td>`;
   };
