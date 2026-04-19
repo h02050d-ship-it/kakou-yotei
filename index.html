@@ -736,7 +736,10 @@ function onOrdChange(el) {
   }
 }
 function onJunChange(el) { saveField(el.dataset.key, 'kessoku_jun', el.value); }
-function onHmChange(el) { saveField(el.dataset.key, 'hinmei', el.value); }
+function onHmChange(el) {
+  saveField(el.dataset.key, 'hinmei', el.value);
+  if (el.value === 'P') saveField(el.dataset.key, 'thickness', '12');
+}
 function onZaikoChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'1':''); }
 
 function isArchived(key) {
