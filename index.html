@@ -196,6 +196,7 @@
   .drag-handle:hover { color: #666; }
   tr.row-dragging { opacity: .3; background: #e3f2fd !important; }
   tr.row-drag-over td { box-shadow: inset 0 -3px 0 #1a73e8; }
+  tr.row-selected td { background: #bbdefb !important; }
 </style>
 </head>
 <body>
@@ -622,6 +623,24 @@ function initRowDrag() {
   if (!tbody) return;
 
   document.querySelectorAll('#tbl-seizou .drag-handle').forEach(handle => {
+    // === Click to select row text ===
+    handle.addEventListener('click', e => {
+      const tr = handle.closest('tr');
+      // Clear previous selection
+      document.querySelectorAll('tr.row-selected').forEach(r => r.classList.remove('row-selected'));
+      tr.classList.add('row-selected');
+      // Select text of all td cells in the row (except drag handle and delete button)
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      const range = document.createRange();
+      const tds = Array.from(tr.querySelectorAll('td')).filter(td => !td.classList.contains('drag-handle') && !td.querySelector('.btn-del'));
+      if (tds.length) {
+        range.setStartBefore(tds[0]);
+        range.setEndAfter(tds[tds.length - 1]);
+        sel.addRange(range);
+      }
+    });
+
     // === Mouse drag ===
     handle.draggable = true;
     handle.addEventListener('dragstart', e => {
@@ -704,6 +723,13 @@ function initRowDrag() {
     });
   });
 }
+
+// Clear row selection when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.drag-handle')) {
+    document.querySelectorAll('tr.row-selected').forEach(r => r.classList.remove('row-selected'));
+  }
+});
 
 // ===== Event handlers =====
 function onCellEdit(el) { saveField(el.dataset.key, el.dataset.field, el.textContent.trim()); }
