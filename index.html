@@ -623,24 +623,24 @@ function initRowDrag() {
   if (!tbody) return;
 
   document.querySelectorAll('#tbl-seizou .drag-handle').forEach(handle => {
-    // === Click to select row text ===
+    // === Click to select row and copy to clipboard ===
     handle.addEventListener('click', e => {
       const tr = handle.closest('tr');
-      // Clear previous selection
       document.querySelectorAll('tr.row-selected').forEach(r => r.classList.remove('row-selected'));
       tr.classList.add('row-selected');
-      // Select text of cells after 取引先 (cust) column
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      const range = document.createRange();
+      // Build tab-separated text from cells after 取引先
       const allTds = Array.from(tr.querySelectorAll('td'));
       const custIdx = allTds.findIndex(td => td.classList.contains('cust'));
       const tds = allTds.slice(custIdx + 1).filter(td => !td.querySelector('.btn-del'));
-      if (tds.length) {
-        range.setStartBefore(tds[0]);
-        range.setEndAfter(tds[tds.length - 1]);
-        sel.addRange(range);
-      }
+      const vals = tds.map(td => {
+        const sel = td.querySelector('select');
+        if (sel) return sel.options[sel.selectedIndex]?.text || sel.value || '';
+        const cb = td.querySelector('input[type="checkbox"]');
+        if (cb) return cb.checked ? '✓' : '';
+        return td.textContent.trim();
+      }).filter(v => v !== '');
+      const text = vals.join('\t');
+      navigator.clipboard.writeText(text).catch(() => {});
     });
 
     // === Mouse drag ===
