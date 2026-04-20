@@ -707,9 +707,14 @@ function initRowDrag() {
   });
 }
 
-// ===== Spreadsheet-like cell range selection =====
-let cellSelAnchor = null; // {tr, td}
-let cellSelDragging = false;
+// ===== Spreadsheet-like cell range selection (hover-based) =====
+// 1) Click a cell to anchor, move mouse to extend, click again to confirm.
+// 2) Click drag-handle to select an entire row.
+// 3) Shift+click to extend selection to another cell/row.
+// 4) Click outside any cell to clear.
+
+let selAnchorTd = null;
+let selExtending = false; // true between first click and confirm
 
 function cellText(td) {
   const sel = td.querySelector('select');
@@ -719,76 +724,110 @@ function cellText(td) {
   return td.textContent.trim();
 }
 
-function getSelectableTd(el) {
+function getTd(el) {
   if (!el) return null;
   const td = el.closest('td');
   if (!td) return null;
-  // Skip drag handle and action button cells
-  if (td.classList.contains('drag-handle')) return null;
   if (td.querySelector('.btn-del, .btn-restore')) return null;
-  // Must be inside one of our data tables
   if (!td.closest('.tbl-kessoku, .tbl-seizou, .tbl-kanryo')) return null;
   return td;
 }
 
-function clearCellSelection() {
+function clearCellSel() {
   document.querySelectorAll('td.cell-selected').forEach(td => td.classList.remove('cell-selected'));
 }
 
-function updateCellSelection(anchorTd, targetTd) {
-  clearCellSelection();
+function selectRange(anchorTd, targetTd) {
+  clearCellSel();
   const table = anchorTd.closest('table');
-  if (!table || table !== targetTd.closest('table')) return;
+  if (!table || table !== targetTd.closest('table')) {
+    anchorTd.classList.add('cell-selected');
+    return;
+  }
   const trs = Array.from(table.querySelectorAll('tbody tr'));
   const aTr = anchorTd.closest('tr');
   const bTr = targetTd.closest('tr');
-  const aRowIdx = trs.indexOf(aTr);
-  const bRowIdx = trs.indexOf(bTr);
-  const aColIdx = Array.from(aTr.children).indexOf(anchorTd);
-  const bColIdx = Array.from(bTr.children).indexOf(targetTd);
-  const r1 = Math.min(aRowIdx, bRowIdx), r2 = Math.max(aRowIdx, bRowIdx);
-  const c1 = Math.min(aColIdx, bColIdx), c2 = Math.max(aColIdx, bColIdx);
+  const aRow = trs.indexOf(aTr), bRow = trs.indexOf(bTr);
+  const aCol = Array.from(aTr.children).indexOf(anchorTd);
+  const bCol = Array.from(bTr.children).indexOf(targetTd);
+  const r1 = Math.min(aRow, bRow), r2 = Math.max(aRow, bRow);
+  const c1 = Math.min(aCol, bCol), c2 = Math.max(aCol, bCol);
   for (let r = r1; r <= r2; r++) {
     const row = trs[r];
     if (!row) continue;
     for (let c = c1; c <= c2; c++) {
       const td = row.children[c];
-      if (td && !td.classList.contains('drag-handle') && !td.querySelector('.btn-del, .btn-restore')) {
-        td.classList.add('cell-selected');
-      }
+      if (td && !td.querySelector('.btn-del, .btn-restore')) td.classList.add('cell-selected');
     }
   }
 }
 
-document.addEventListener('mousedown', e => {
-  // Ignore interactive elements (checkboxes, selects, editable cells, buttons)
-  if (e.target.closest('input, select, button, [contenteditable="true"], .drag-handle')) return;
-  const td = getSelectableTd(e.target);
-  if (!td) { clearCellSelection(); return; }
-  if (e.shiftKey && cellSelAnchor) {
-    updateCellSelection(cellSelAnchor, td);
+function selectEntireRow(tr) {
+  clearCellSel();
+  Array.from(tr.children).forEach(td => {
+    if (!td.classList.contains('drag-handle') && !td.querySelector('.btn-del, .btn-restore')) {
+      td.classList.add('cell-selected');
+    }
+  });
+  selAnchorTd = Array.from(tr.children).find(td => !td.classList.contains('drag-handle'));
+  selExtending = false;
+}
+
+// Drag handle click = select whole row
+document.addEventListener('click', e => {
+  const handle = e.target.closest('.drag-handle');
+  if (handle) {
+    const tr = handle.closest('tr');
+    if (tr) {
+      if (e.shiftKey && selAnchorTd) {
+        // Extend selection to this row
+        const targetTd = Array.from(tr.children).find(td => !td.classList.contains('drag-handle'));
+        if (targetTd) selectRange(selAnchorTd, targetTd);
+      } else {
+        selectEntireRow(tr);
+      }
+    }
     e.preventDefault();
     return;
   }
-  cellSelAnchor = td;
-  cellSelDragging = true;
-  clearCellSelection();
-  td.classList.add('cell-selected');
+  // Click on a data cell: start or confirm selection
+  const td = getTd(e.target);
+  if (td) {
+    if (e.shiftKey && selAnchorTd) {
+      selectRange(selAnchorTd, td);
+      selExtending = false;
+    } else if (selExtending && selAnchorTd) {
+      // Confirm selection at this cell
+      selectRange(selAnchorTd, td);
+      selExtending = false;
+    } else {
+      // Start new selection (if click on non-interactive cell)
+      if (!e.target.closest('input, select, button, [contenteditable="true"]')) {
+        clearCellSel();
+        td.classList.add('cell-selected');
+        selAnchorTd = td;
+        selExtending = true;
+      }
+    }
+    return;
+  }
+  // Click elsewhere: clear
+  clearCellSel();
+  selAnchorTd = null;
+  selExtending = false;
 });
 
+// Live preview while extending
 document.addEventListener('mousemove', e => {
-  if (!cellSelDragging || !cellSelAnchor) return;
-  const td = getSelectableTd(e.target);
-  if (td) updateCellSelection(cellSelAnchor, td);
+  if (!selExtending || !selAnchorTd) return;
+  const td = getTd(e.target);
+  if (td) selectRange(selAnchorTd, td);
 });
-
-document.addEventListener('mouseup', () => { cellSelDragging = false; });
 
 // Copy selected cells as HTML table + TSV
 document.addEventListener('copy', e => {
   const cells = document.querySelectorAll('td.cell-selected');
   if (!cells.length) return;
-  // Group by row
   const byRow = new Map();
   cells.forEach(td => {
     const tr = td.closest('tr');
@@ -796,10 +835,9 @@ document.addEventListener('copy', e => {
     byRow.get(tr).push(td);
   });
   const rows = Array.from(byRow.values());
-  // Sort cells within each row by DOM position
-  rows.forEach(arr => arr.sort((a, b) => {
-    return Array.from(a.parentNode.children).indexOf(a) - Array.from(b.parentNode.children).indexOf(b);
-  }));
+  rows.forEach(arr => arr.sort((a, b) =>
+    Array.from(a.parentNode.children).indexOf(a) - Array.from(b.parentNode.children).indexOf(b)
+  ));
   const tsv = rows.map(tds => tds.map(cellText).join('\t')).join('\n');
   const html = '<table>' + rows.map(tds =>
     '<tr>' + tds.map(td => '<td>' + cellText(td).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</td>').join('') + '</tr>'
@@ -807,6 +845,7 @@ document.addEventListener('copy', e => {
   e.clipboardData.setData('text/plain', tsv);
   e.clipboardData.setData('text/html', html);
   e.preventDefault();
+  selExtending = false;
 });
 
 // ===== Event handlers =====
