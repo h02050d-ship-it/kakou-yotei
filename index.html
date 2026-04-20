@@ -629,11 +629,13 @@ function initRowDrag() {
       // Clear previous selection
       document.querySelectorAll('tr.row-selected').forEach(r => r.classList.remove('row-selected'));
       tr.classList.add('row-selected');
-      // Select text of all td cells in the row (except drag handle and delete button)
+      // Select text of cells after 取引先 (cust) column
       const sel = window.getSelection();
       sel.removeAllRanges();
       const range = document.createRange();
-      const tds = Array.from(tr.querySelectorAll('td')).filter(td => !td.classList.contains('drag-handle') && !td.querySelector('.btn-del'));
+      const allTds = Array.from(tr.querySelectorAll('td'));
+      const custIdx = allTds.findIndex(td => td.classList.contains('cust'));
+      const tds = allTds.slice(custIdx + 1).filter(td => !td.querySelector('.btn-del'));
       if (tds.length) {
         range.setStartBefore(tds[0]);
         range.setEndAfter(tds[tds.length - 1]);
@@ -783,7 +785,7 @@ function onDeleteRow(key) {
 function onAddRow() {
   const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const newRow = {
-    _uid: uid, order: '1',
+    _uid: uid, order: '8',
     customer: '', hinmei: 'F', grade: '丸節',
     thickness: '15', width: '120', length: '4000',
     qty: '8', planned: '-', actual: '-',
