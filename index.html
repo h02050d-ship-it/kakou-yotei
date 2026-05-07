@@ -397,9 +397,15 @@ function render() {
   });
 
   const kanryo = items.filter(i => i._ord >= 9).sort((a, b) => {
-    const aT = a.completed_at || 0;
-    const bT = b.completed_at || 0;
-    return bT - aT; // 新しい順
+    // 1st: 製造順
+    if (a._ord !== b._ord) return a._ord - b._ord;
+    // 2nd: 取引先ごとにまとまるよう
+    const aC = (getVal(a, 'cust') || '').toString();
+    const bC = (getVal(b, 'cust') || '').toString();
+    const c = aC.localeCompare(bC, 'ja');
+    if (c !== 0) return c;
+    // 3rd: 完了日時の新しい順（タイブレーク）
+    return (b.completed_at || 0) - (a.completed_at || 0);
   });
   const underNine = items.filter(i => i._ord < 9);
   const kessoku = underNine.filter(i => i._jun).sort((a,b)=>{
