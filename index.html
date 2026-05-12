@@ -866,7 +866,8 @@ function onGenSelChange(el) {
   } else {
     saveField(el.dataset.key, el.dataset.field, el.value);
     if (el.dataset.field === 'length') {
-      if (el.value === '3000') saveField(el.dataset.key, 'qty', '10');
+      if (el.value === '1820') saveField(el.dataset.key, 'qty', '10');
+      else if (el.value === '3000') saveField(el.dataset.key, 'qty', '10');
       else if (el.value === '4000') saveField(el.dataset.key, 'qty', '8');
     }
   }
