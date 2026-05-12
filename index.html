@@ -348,7 +348,7 @@ function cellRenderers(it, sz) {
     thickness: genSel(it,'thickness',['-','12','15'],sz,'dim'),
     width: genSel(it,'width',['120','150'],sz,'dim'),
     length: genSel(it,'length',['-','910','1820','2000','3000','4000','300'],sz,'dim'),
-    qty: genSel(it,'qty',['-','8','10','20','40'],sz,''),
+    qty: genSel(it,'qty',['-','8','10','20','40','2'],sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
     actual: genSel(it,'actual',numOpts,sz,'bnum'),
     seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
