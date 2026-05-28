@@ -319,6 +319,7 @@ function getColOrder() { return colOrder; }
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
 const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
+const actualOpts = [...numOpts,'配送確認','支払確認','塗装中'];
 function genSel(it,field,options,sz,cls){
   const cur=String(getVal(it,field));
   const inList = options.some(v => String(v) === cur);
@@ -350,7 +351,7 @@ function cellRenderers(it, sz) {
     length: genSel(it,'length',['-','910','1820','2000','3000','4000','300'],sz,'dim'),
     qty: genSel(it,'qty',['-','8','10','20','40','2'],sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
-    actual: genSel(it,'actual',numOpts,sz,'bnum'),
+    actual: genSel(it,'actual',actualOpts,sz,'bnum'),
     seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
     danball: `<input type="checkbox" class="cb-seal" ${getVal(it,'danball')==='有'?'checked':''} data-key="${k}" data-field="danball" onchange="onSealChange(this)">`,
     ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
