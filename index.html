@@ -1014,7 +1014,9 @@ function kanryoItems(){
 }
 function showNouhinModal(){
   const groups={};
-  kanryoItems().forEach(it=>{ const c=(it.customer||'').trim(); if(!c) return; (groups[c]=groups[c]||[]).push(it); });
+  // ヤフ・楽天（EC個人客）は納品書を作らないため候補から除外
+  const skip = c => /^(ヤフ|楽天)/.test(c);
+  kanryoItems().forEach(it=>{ const c=(it.customer||'').trim(); if(!c || skip(c)) return; (groups[c]=groups[c]||[]).push(it); });
   const keys=Object.keys(groups).sort((a,b)=>fullName(a).localeCompare(fullName(b),'ja'));
   const body=document.getElementById('nouhinModalBody');
   if(!keys.length){ body.innerHTML='<div style="padding:20px;color:#888">製造完了（未出荷）がありません</div>'; }
