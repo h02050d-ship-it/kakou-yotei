@@ -219,6 +219,13 @@
     <div id="sealModalBody"></div>
   </div>
 </div>
+<div class="modal-overlay" id="nouhinModal" onclick="if(event.target===this)closeNouhinModal()">
+  <div class="modal">
+    <div class="modal-head">納品書を作成する取引先<button class="modal-close" onclick="closeNouhinModal()">&times;</button></div>
+    <div class="note" style="color:#666">製造完了（未出荷）の取引先をタップ → 略称を正式名称に変換し、その取引先の完了分をまとめて納品書ツールで開きます。</div>
+    <div id="nouhinModalBody"></div>
+  </div>
+</div>
 <div class="main" id="mainArea">
   <div class="loading"><div class="spinner"></div>読み込み中...</div>
 </div>
@@ -463,7 +470,7 @@ function render() {
   const kanryoVisible = kanryo.filter(i => !isArchived(itemKey(i)));
   const kanryoArchived = kanryo.filter(i => isArchived(itemKey(i)));
 
-  html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span></div>`;
+  html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button></div>`;
   if (kanryoVisible.length) {
     html += `<div class="table-scroll kanryo-scroll"><table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
     kanryoCols.forEach((c,i) => {
@@ -937,6 +944,115 @@ function showSealModal() {
   });
 }
 function closeSealModal() { document.getElementById('sealModal').classList.remove('show'); }
+
+// ===== 納品書連携：略称→正式名称、製造完了→納品書ツール =====
+const NOUHIN_URL = 'https://hayazai.com/nouhin/';
+// 加工予定表の取引先「略称」→ 納品書の「正式名称」
+const CUSTOMER_FULL = {
+  'ひかり':'（株）HIKARI',
+  'アイザワ':'（株）アイザワ',
+  '糸永':'（株）糸永',
+  'オオツカ':'（株）オオツカ',
+  'カネ信':'カネ信木材(株)',
+  '滝川':'（有）滝川',
+  'ニッチ':'（株）ニッチ',
+  '千葉木':'千葉県木材市場協同組合',
+  '千葉木材':'千葉県木材市場協同組合',
+  '山田銘建':'山田銘建',
+  '中央大口':'中央木材市売（株）大口営業所',
+  '中央浜松':'中央木材市売（株）浜松営業所',
+  '中央西部':'中央木材市売（株）西部営業所',
+  // 丸宇木材市売（株）各市場
+  '丸宇京葉':'丸宇木材市売（株）京葉市場',
+  '丸宇下館':'丸宇木材市売（株）下館市場',
+  '丸宇北浜':'丸宇木材市売（株）北浜市場',
+  '丸宇大栄':'丸宇木材市売（株）大栄浜市場',
+  // ナイス（株）各営業所
+  'ナイス小牧':'ナイス（株）小牧',
+  'ナイス沼津':'ナイス（株）沼津',
+  'ナイス相模原':'ナイス（株）相模原',
+  'ナイス浜松':'ナイス（株）浜松',
+  'ナイス横浜':'ナイス（株）横浜',
+  'ナイス長野':'ナイス（株）長野',
+  'ナイス宇都宮':'ナイス（株）宇都宮',
+  'ナイス香川':'ナイス（株）香川',
+  'ナイス埼玉':'ナイス（株）埼玉',
+  'ナイス資材':'ナイス（株）資材事業部',
+  'ナイス新潟':'ナイス（株）新潟',
+  'ナイス前橋':'ナイス（株）前橋',
+  'ナイス滋賀':'ナイス（株）滋賀',
+  'ナイス岡山':'ナイス（株）岡山',
+  'ナイス木材':'ナイス（株）木材事業部',
+  // その他（将来分・推定略称）
+  '井出木':'（有）井出木建材',
+  '金平':'（株）金平',
+  '勝山':'（株）勝山木材市場',
+  '木下':'㈱木下銘木店',
+  '北隅':'北隅木材（株）',
+  '桑原':'桑原木材（株）',
+  '佐藤工業':'佐藤工業（株）',
+  '山都':'山都銘木',
+  '東京丸文':'（有）東京丸文',
+  'ニッチ松本':'（株）ニッチ　松本営業所',
+  'ホリウチ':'ホリウチ建営株式会社',
+  'マルチ':'（株）マルチ',
+  'マルサン':'マルサンアークウッド（株）',
+  '丸山西':'丸山西木材産業（株）',
+  'ミトモク':'（株）ミトモク',
+  'ミトモク日立':'㈱ミトモク日立',
+  '吉貞熊谷':'（株）吉貞　熊谷市場',
+  '吉貞高崎':'（株）吉貞　高崎市場',
+  '吉貞佐野':'（株）吉貞　佐野市場',
+};
+const HINMEI_NAME = { F:'桧フローリング', P:'桧羽目板', S:'桧スノコ板', N:'ナイスオリジナル' };
+function fullName(abbr){ return CUSTOMER_FULL[(abbr||'').trim()] || (abbr||'').trim(); }
+function kanryoItems(){
+  return allItems.filter(it=>{
+    const o=parseInt(it.order||'0'); const ord=isNaN(o)?99:o;
+    return ord>=9 && it.archived!=='1';
+  });
+}
+function showNouhinModal(){
+  const groups={};
+  kanryoItems().forEach(it=>{ const c=(it.customer||'').trim(); if(!c) return; (groups[c]=groups[c]||[]).push(it); });
+  const keys=Object.keys(groups).sort((a,b)=>fullName(a).localeCompare(fullName(b),'ja'));
+  const body=document.getElementById('nouhinModalBody');
+  if(!keys.length){ body.innerHTML='<div style="padding:20px;color:#888">製造完了（未出荷）がありません</div>'; }
+  else{
+    let html='<table><thead><tr><th>取引先（正式名称）</th><th style="text-align:center">件数</th><th></th></tr></thead><tbody>';
+    keys.forEach(k=>{
+      const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const unmapped = !CUSTOMER_FULL[k];
+      html+=`<tr style="cursor:pointer" data-cust="${e(k)}">
+        <td class="cust">${e(fullName(k))}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}</td>
+        <td style="text-align:center">${groups[k].length}</td>
+        <td style="text-align:right"><span style="color:#1a73e8;font-weight:700">作成 ▶</span></td></tr>`;
+    });
+    html+='</tbody></table>';
+    body.innerHTML=html;
+    body.querySelectorAll('tr[data-cust]').forEach(tr=> tr.addEventListener('click',()=> buildNouhin(tr.dataset.cust)));
+  }
+  document.getElementById('nouhinModal').classList.add('show');
+}
+function closeNouhinModal(){ document.getElementById('nouhinModal').classList.remove('show'); }
+function buildNouhin(custAbbrev){
+  const num=v=>{ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; };
+  const items = kanryoItems()
+    .filter(it=> (it.customer||'').trim()===custAbbrev)
+    .map(it=>{
+      const qty = num(it.actual); const pln = num(it.planned);
+      return {
+        name: HINMEI_NAME[it.hinmei]||it.hinmei||'',
+        grade: it.grade||'',
+        t: it.thickness||'', w: it.width||'', l: it.length||'', in: it.qty||'',
+        qty: (qty!=null?qty:(pln!=null?pln:''))
+      };
+    });
+  const data = { mode:'納品書', customer: fullName(custAbbrev), taxrate:10, items };
+  const url = NOUHIN_URL + '#data=' + encodeURIComponent(JSON.stringify(data));
+  window.open(url, '_blank');
+  closeNouhinModal();
+}
 
 // 製造完了データをスプレッドシートに同期
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyE2O2zEk1NDYskaxflVtPReblSOyA5CyjfHTNXAYzK6tX1zgEzRypcFFSjtDy2SWa7wg/exec';
