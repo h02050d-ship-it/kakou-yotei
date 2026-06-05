@@ -325,15 +325,22 @@ function getColOrder() { return colOrder; }
 
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
+const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#2e7d32','無節':'#1565c0'};
 const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
 const actualOpts = [...numOpts,'配送確認','支払確認','塗装中'];
-function genSel(it,field,options,sz,cls){
+function genSel(it,field,options,sz,cls,colorMap){
   const cur=String(getVal(it,field));
   const inList = options.some(v => String(v) === cur);
-  let opts = options.map(v=>`<option value="${v}" ${cur===String(v)?'selected':''}>${v}</option>`).join('');
+  let opts = options.map(v=>{
+    const c = colorMap && colorMap[v];
+    const st = c ? ` style="color:${c};font-weight:700"` : '';
+    return `<option value="${v}"${st} ${cur===String(v)?'selected':''}>${v}</option>`;
+  }).join('');
   if (!inList && cur) opts += `<option value="${cur}" selected>${cur}</option>`;
   opts += `<option value="__other__">その他...</option>`;
-  return `<select class="sel ${cls||''}" data-key="${itemKey(it)}" data-field="${field}" onchange="onGenSelChange(this)">${opts}</select>`;
+  const curColor = colorMap && colorMap[cur];
+  const selStyle = curColor ? ` style="color:${curColor};font-weight:700"` : '';
+  return `<select class="sel ${cls||''}"${selStyle} data-key="${itemKey(it)}" data-field="${field}" onchange="onGenSelChange(this)">${opts}</select>`;
 }
 function cellRenderers(it, sz) {
   const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -352,7 +359,7 @@ function cellRenderers(it, sz) {
     order: `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
     hinmei: `<select class="sel sel-hm" style="background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
-    grade: genSel(it,'grade',gradeOpts,sz,''),
+    grade: genSel(it,'grade',gradeOpts,sz,'',gradeColors),
     thickness: genSel(it,'thickness',['-','12','15'],sz,'dim'),
     width: genSel(it,'width',['120','150'],sz,'dim'),
     length: genSel(it,'length',['-','910','1820','2000','3000','4000','300'],sz,'dim'),
