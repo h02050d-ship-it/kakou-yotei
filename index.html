@@ -412,13 +412,13 @@ function render() {
   });
 
   const kanryo = items.filter(i => i._ord >= 9).sort((a, b) => {
-    // 1st: 製造順
-    if (a._ord !== b._ord) return a._ord - b._ord;
-    // 2nd: 取引先ごとにまとまるよう
-    const aC = (getVal(a, 'cust') || '').toString();
-    const bC = (getVal(b, 'cust') || '').toString();
+    // 1st: 取引先ごとにまとめる（最優先）
+    const aC = (getVal(a, 'customer') || '').toString();
+    const bC = (getVal(b, 'customer') || '').toString();
     const c = aC.localeCompare(bC, 'ja');
     if (c !== 0) return c;
+    // 2nd: 製造順
+    if (a._ord !== b._ord) return a._ord - b._ord;
     // 3rd: 完了日時の新しい順（タイブレーク）
     return (b.completed_at || 0) - (a.completed_at || 0);
   });
