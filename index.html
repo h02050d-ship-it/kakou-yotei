@@ -325,7 +325,7 @@ function getColOrder() { return colOrder; }
 
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
-const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#2e7d32','無節':'#1565c0'};
+const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#2e7d32','無節':'#1565c0','無節特上':'#6a1b9a'};
 const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
 const actualOpts = [...numOpts,'配送確認','支払確認','塗装中'];
 function genSel(it,field,options,sz,cls,colorMap){
