@@ -347,7 +347,7 @@ function cellRenderers(it, sz) {
   const k=itemKey(it), ea=(f)=>`contenteditable="true" data-key="${k}" data-field="${f}" onblur="onCellEdit(this)"`;
   const cur=getVal(it,'hinmei'), thick=getVal(it,'thickness');
   const is12=cur==='F'&&String(thick)==='12';
-  const bgMap={F:is12?'#f9a825':'#1565c0',P:'#2e7d32',N:'#e65100',S:'#6a1b9a'};
+  const bgMap={F:is12?'#f9a825':'#d32f2f',P:'#1565c0',N:'#e65100',S:'#6a1b9a'};
   const bg=bgMap[cur]||'#999', tc=is12?'#333':'#fff';
   const junCur=getVal(it,'kessoku_jun')||'';
   const ordCur=getVal(it,'order');
