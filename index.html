@@ -222,7 +222,6 @@
 <div class="modal-overlay" id="nouhinModal" onclick="if(event.target===this)closeNouhinModal()">
   <div class="modal">
     <div class="modal-head">納品書を作成する取引先<button class="modal-close" onclick="closeNouhinModal()">&times;</button></div>
-    <div class="note" style="color:#666">製造完了（未出荷）の取引先をタップ → 略称を正式名称に変換し、その取引先の完了分をまとめて納品書ツールで開きます。</div>
     <div id="nouhinModalBody"></div>
   </div>
 </div>
@@ -1026,11 +1025,11 @@ function showNouhinModal(){
   kanryoItems().forEach(it=>{ const c=(it.customer||'').trim(); if(!c || skip(c)) return; (groups[c]=groups[c]||[]).push(it); });
   const keys=Object.keys(groups).sort((a,b)=>fullName(a).localeCompare(fullName(b),'ja'));
   const body=document.getElementById('nouhinModalBody');
-  // 取引先を選ばず空の納品書を開くボタン（常に表示）
-  const blankBtn='<div style="padding:12px 20px;border-bottom:1px solid #eee"><button onclick="window.open(NOUHIN_URL,\'_blank\');closeNouhinModal()" style="width:100%;padding:10px;border:2px dashed #1a73e8;background:#f5f9ff;color:#1a73e8;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">＋ 空の納品書を開く（取引先選択なし）</button></div>';
-  if(!keys.length){ body.innerHTML=blankBtn+'<div style="padding:20px;color:#888">製造完了（未出荷）がありません</div>'; }
+  // 取引先を選ばず空の納品書を開くボタン（常に最下部に表示）
+  const blankBtn='<div style="padding:12px 20px;border-top:1px solid #eee"><button onclick="window.open(NOUHIN_URL,\'_blank\');closeNouhinModal()" style="width:100%;padding:10px;border:2px dashed #1a73e8;background:#f5f9ff;color:#1a73e8;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">＋ 空の納品書を開く</button></div>';
+  if(!keys.length){ body.innerHTML='<div style="padding:20px;color:#888">製造完了（未出荷）がありません</div>'+blankBtn; }
   else{
-    let html=blankBtn+'<table><thead><tr><th>取引先（正式名称）</th><th style="text-align:center">件数</th><th></th></tr></thead><tbody>';
+    let html='<table><thead><tr><th>取引先（正式名称）</th><th style="text-align:center">件数</th><th></th></tr></thead><tbody>';
     keys.forEach(k=>{
       const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const unmapped = !CUSTOMER_FULL[k];
@@ -1039,7 +1038,7 @@ function showNouhinModal(){
         <td style="text-align:center">${groups[k].length}</td>
         <td style="text-align:right"><span style="color:#1a73e8;font-weight:700">作成 ▶</span></td></tr>`;
     });
-    html+='</tbody></table>';
+    html+='</tbody></table>'+blankBtn;
     body.innerHTML=html;
     body.querySelectorAll('tr[data-cust]').forEach(tr=> tr.addEventListener('click',()=> buildNouhin(tr.dataset.cust)));
   }
