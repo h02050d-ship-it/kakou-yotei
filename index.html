@@ -264,7 +264,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','dblcheck','kessoku_jun','remark','archived'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -474,7 +474,8 @@ function render() {
 
   // 製造完了 (exclude archived)
   const kanryoVisible = kanryo.filter(i => !isArchived(itemKey(i)));
-  const kanryoArchived = kanryo.filter(i => isArchived(itemKey(i)));
+  const kanryoArchived = kanryo.filter(i => isArchived(itemKey(i)))
+    .sort((a, b) => (b.archived_at || 0) - (a.archived_at || 0));
 
   html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button></div>`;
   if (kanryoVisible.length) {
@@ -910,8 +911,14 @@ function isArchived(key) {
   const it = allItems.find(i => itemKey(i) === key);
   return it && it.archived === '1';
 }
-function onArchive(key) { saveField(key, 'archived', '1'); }
-function onRestore(key) { saveField(key, 'archived', ''); }
+function onArchive(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (it) { it.archived = '1'; it.archived_at = Date.now(); saveItem(it); }
+}
+function onRestore(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (it) { it.archived = ''; it.archived_at = ''; saveItem(it); }
+}
 function toggleArchive() { showArchive = !showArchive; render(); }
 
 function onDeleteRow(key) {
