@@ -1161,7 +1161,8 @@ function showShukkaModal(){
   });
   html+='</div>';
   html+='<div style="padding:10px 16px;border-top:1px solid #ddd"><textarea id="shukkaText" readonly style="width:100%;height:150px;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box"></textarea>';
-  html+='<button onclick="copyShukka(this)" style="margin-top:8px;width:100%;padding:11px;background:#06C755;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">📋 コピー（出荷LINEに貼り付け）</button></div>';
+  html+='<button onclick="sendShukka(this)" style="margin-top:8px;width:100%;padding:12px;background:#06C755;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">📤 業者へ送信</button>';
+  html+='<button onclick="copyShukka(this)" style="margin-top:6px;width:100%;padding:9px;background:#fff;color:#06C755;border:1px solid #06C755;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">📋 コピーだけする（手動で貼り付け）</button></div>';
   body.innerHTML=html;
   document.getElementById('shukkaModal').classList.add('show');
   renderShukkaText();
@@ -1188,6 +1189,27 @@ function copyShukka(btn){
   else { document.execCommand('copy'); ok(); }
 }
 function closeShukkaModal(){ document.getElementById('shukkaModal').classList.remove('show'); }
+// 業者の出荷専用LINEへ自動送信（hayazai.com/shukka/send.php 経由でbroadcast）
+const SHUKKA_ENDPOINT='https://hayazai.com/shukka/send.php';
+function sendShukka(btn){
+  const ta=document.getElementById('shukkaText');
+  const cnt=document.querySelectorAll('.shk-cb:checked').length;
+  if(!ta || !cnt){ alert('送る品目を1つ以上チェックしてください'); return; }
+  if(!confirm(`選択した ${cnt}件 を業者へLINE送信します。よろしいですか？`)) return;
+  let pin=localStorage.getItem('shukka_pin')||'';
+  if(!pin){ pin=((prompt('送信PINを入力してください（初回のみ・以後は記憶します）')||'').trim()); if(!pin) return; }
+  const text=ta.value, orig=btn.textContent;
+  btn.disabled=true; btn.textContent='送信中…';
+  fetch(SHUKKA_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin,text})})
+    .then(async r=>({ok:r.ok,status:r.status,j:await r.json().catch(()=>({}))}))
+    .then(res=>{
+      btn.disabled=false;
+      if(res.ok && res.j.ok){ localStorage.setItem('shukka_pin',pin); btn.textContent='✅ 送信しました'; setTimeout(()=>{btn.textContent=orig; closeShukkaModal();},1500); }
+      else if(res.status===403){ localStorage.removeItem('shukka_pin'); btn.textContent=orig; alert('PINが違います。もう一度お試しください。'); }
+      else { btn.textContent=orig; alert('送信に失敗しました（'+(res.j.error||res.status)+'）。「コピーだけする」で手動送信してください。'); }
+    })
+    .catch(e=>{ btn.disabled=false; btn.textContent=orig; alert('通信エラー: '+e.message+'\n「コピーだけする」で手動送信してください。'); });
+}
 
 // 製造完了データをスプレッドシートに同期
 const GAS_URL ='https://script.google.com/macros/s/AKfycbyE2O2zEk1NDYskaxflVtPReblSOyA5CyjfHTNXAYzK6tX1zgEzRypcFFSjtDy2SWa7wg/exec';
