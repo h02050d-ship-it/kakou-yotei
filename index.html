@@ -574,7 +574,7 @@ function calcProcTime() {
 }
 
 function fmtMin(min) {
-  const m = Math.round(min);
+  const m = Math.round(min / 10) * 10;   // 10分単位に丸める
   if (m <= 0) return '0分';
   if (m < 60) return m + '分';
   const h = Math.floor(m / 60), mm = m % 60;
