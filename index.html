@@ -283,7 +283,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -1139,14 +1139,16 @@ function shkLenM(l){ const n=parseFloat(String(l==null?'':l).replace(/[^0-9.]/g,
 function shkDone(it){ const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9; }
 function shkBun(it){ const b=shkNum(it.actual); return b!=null?b:shkNum(it.planned); }
 function shkSkip(c){ return /^(ヤフ|楽天|ネット)/.test((c||'').trim()); }
+function shkNew(it){ return !it.shk_sent; }              // まだ送信していない＝新規
+function shkStatusLabel(it){ return shkDone(it)?'製造完了':'製造未完了'; }
 function shkCandidates(){
   return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; return true; });
 }
-// 取引先ごとにグループ化。各群内は完了→未完了、長さ昇順。
+// 取引先ごとにグループ化。各群内は新規→既送、完了→未完了、長さ昇順。
 function shkGroups(items){
   const g={};
   items.forEach(it=>{ const c=((it.customer||'').trim())||'(取引先なし)'; (g[c]=g[c]||[]).push(it); });
-  Object.values(g).forEach(arr=>arr.sort((a,b)=>{ const da=shkDone(a),db=shkDone(b); if(da!==db)return da?-1:1; return (shkNum(a.length)||0)-(shkNum(b.length)||0); }));
+  Object.values(g).forEach(arr=>arr.sort((a,b)=>{ const na=shkNew(a),nb=shkNew(b); if(na!==nb)return na?-1:1; const da=shkDone(a),db=shkDone(b); if(da!==db)return da?-1:1; return (shkNum(a.length)||0)-(shkNum(b.length)||0); }));
   return g;
 }
 function showShukkaModal(){
@@ -1155,16 +1157,17 @@ function showShukkaModal(){
   const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
   const body=document.getElementById('shukkaModalBody');
   if(!custs.length){ body.innerHTML='<div style="padding:20px;color:#888">対象の品目がありません（楽天・ヤフー・ネットは除外）</div>'; document.getElementById('shukkaModal').classList.add('show'); return; }
-  let html='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択）。取引先ごと・製造中/完了を表示。</div><div style="max-height:42vh;overflow:auto;padding:0 16px">';
+  let html='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択）。🆕＝新規（未送信）。取引先ごと・製造完了/未完了を表示。</div><div style="max-height:42vh;overflow:auto;padding:0 16px">';
   custs.forEach(c=>{
     html+=`<div style="font-weight:800;color:#1a73e8;margin:12px 0 2px;border-bottom:2px solid #1a73e8;padding-bottom:2px">${e(c)}</div>`;
     g[c].forEach(it=>{
       const done=shkDone(it); const k=itemKey(it); const bun=shkBun(it);
       const sub=`${HINMEI_NAME[it.hinmei]||it.hinmei||'?'} ${it.grade||''} ${it.thickness||''}×${it.width||''}×${it.length||''}`;
-      const badge=done?'<span style="color:#2e7d32;font-weight:700;font-size:11px">完了</span>':'<span style="color:#e65100;font-weight:700;font-size:11px">製造中</span>';
+      const badge=done?'<span style="color:#2e7d32;font-weight:700;font-size:11px">製造完了</span>':'<span style="color:#e65100;font-weight:700;font-size:11px">製造未完了</span>';
+      const nw=shkNew(it)?'<span style="background:#e53935;color:#fff;font-weight:800;font-size:10px;border-radius:4px;padding:1px 5px;margin-right:4px">🆕新規</span>':'';
       html+=`<label style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee;cursor:pointer">
         <input type="checkbox" class="shk-cb" data-key="${k}" checked onchange="renderShukkaText()">
-        <span style="flex:1"><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
+        <span style="flex:1">${nw}<b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
       </label>`;
     });
   });
@@ -1186,12 +1189,12 @@ function renderShukkaText(){
     const lines=g[c].map(it=>{
       const dn=shkDone(it); dn?done++:und++;
       const bun=shkBun(it);
-      return `${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}${dn?'':'（製造中）'}`;
+      return `${shkNew(it)?'🆕 ':''}${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
     });
     blocks.push('■ '+c+'\n'+lines.join('\n'));
   });
   let txt='【出荷依頼】林材木店  '+date+'\n\n'+(blocks.length?blocks.join('\n\n'):'(品目未選択)');
-  txt+=`\n\n計${items.length}件（完了${done}／未完了${und}）`;
+  txt+=`\n\n計${items.length}件（製造完了${done}／製造未完了${und}）`;
   const ta=document.getElementById('shukkaText'); if(ta) ta.value=txt;
 }
 function copyShukka(btn){
@@ -1212,12 +1215,19 @@ function sendShukka(btn){
   let pin=localStorage.getItem('shukka_pin')||'';
   if(!pin){ pin=((prompt('送信PINを入力してください（初回のみ・以後は記憶します）')||'').trim()); if(!pin) return; }
   const text=ta.value, orig=btn.textContent;
+  const sentKeys=[...document.querySelectorAll('.shk-cb:checked')].map(cb=>cb.dataset.key);
   btn.disabled=true; btn.textContent='送信中…';
   fetch(SHUKKA_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin,text})})
     .then(async r=>({ok:r.ok,status:r.status,j:await r.json().catch(()=>({}))}))
     .then(res=>{
       btn.disabled=false;
-      if(res.ok && res.j.ok){ localStorage.setItem('shukka_pin',pin); btn.textContent='✅ 送信しました'; setTimeout(()=>{btn.textContent=orig; closeShukkaModal();},1500); }
+      if(res.ok && res.j.ok){
+        localStorage.setItem('shukka_pin',pin);
+        // 送信済みにマーク（次回以降は🆕が外れ通常表示・混在に）
+        const ts=Date.now();
+        sentKeys.forEach(k=>{ try{ db.ref('items/'+k.replace(/[.#$/\[\]]/g,'_')+'/shk_sent').set(ts); }catch(e){} });
+        btn.textContent='✅ 送信しました'; setTimeout(()=>{btn.textContent=orig; closeShukkaModal();},1500);
+      }
       else if(res.status===403){ localStorage.removeItem('shukka_pin'); btn.textContent=orig; alert('PINが違います。もう一度お試しください。'); }
       else { btn.textContent=orig; alert('送信に失敗しました（'+(res.j.error||res.status)+'）。「コピーだけする」で手動送信してください。'); }
     })
