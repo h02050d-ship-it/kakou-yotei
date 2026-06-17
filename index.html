@@ -20,8 +20,20 @@
     padding: 8px 16px; display: flex; align-items: center;
     justify-content: space-between; flex-shrink: 0;
   }
-  .header h1 { font-size: 22px; font-weight: 700; }
-  .header-right { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+  .header h1 { font-size: 22px; font-weight: 700; flex-shrink: 0; }
+  .header-right { display: flex; align-items: center; gap: 10px; font-size: 14px; flex-shrink: 0; }
+  .proc-estimate {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    color: #fff; justify-content: center; flex: 1;
+  }
+  .proc-estimate .pe-item {
+    background: rgba(255,255,255,.18); padding: 3px 14px; border-radius: 16px;
+    display: flex; align-items: baseline; gap: 6px; white-space: nowrap;
+  }
+  .proc-estimate .pe-total { background: rgba(255,255,255,.34); }
+  .proc-estimate .pe-label { font-size: 12px; font-weight: 600; opacity: .9; }
+  .proc-estimate .pe-val { font-size: 18px; font-weight: 800; }
+  .proc-estimate .pe-empty { font-size: 13px; opacity: .8; }
   .btn {
     background: rgba(255,255,255,.2); border: none; color: #fff;
     padding: 6px 14px; border-radius: 6px; font-size: 14px;
@@ -203,6 +215,7 @@
 <body>
 <div class="header">
   <h1>加工予定表</h1>
+  <div class="proc-estimate" id="procEstimate"></div>
   <div class="header-right">
     <span id="lastUpdated"></span>
     <button class="btn" onclick="showSealModal()">シール・段ボール表</button>
@@ -535,6 +548,48 @@ function render() {
   initRowDrag();
   initCellNav();
   autoFitCells();
+  updateProcEstimate();
+}
+
+// ===== 加工予定時間の計算 =====
+// 基準: 4m・8枚入・1束 = 4分、これに1割増し(×1.1)
+// 各行: 4 × (長さ/4000) × (入数/8) × 予定(束数) × 1.1
+// 加在チェック済み・製造完了は除外。15mm=フローリング / 12mm=羽目板
+function calcProcTime() {
+  let floor = 0, hame = 0;
+  allItems.forEach(it => {
+    const ord = parseInt(getVal(it, 'order'));
+    if (!isNaN(ord) && ord >= 9) return;          // 製造完了は除外
+    if (getVal(it, 'zaiko') === '1') return;       // 加在チェック済みは除外
+    const len = parseFloat(getVal(it, 'length')) || 0;
+    const qty = parseFloat(getVal(it, 'qty')) || 0;
+    const bundles = parseFloat(getVal(it, 'planned')) || 0;
+    if (!len || !qty || !bundles) return;
+    const t = 4 * (len / 4000) * (qty / 8) * bundles * 1.1;
+    const thick = String(getVal(it, 'thickness'));
+    if (thick === '15') floor += t;
+    else if (thick === '12') hame += t;
+  });
+  return { floor, hame, total: floor + hame };
+}
+
+function fmtMin(min) {
+  const m = Math.round(min);
+  if (m <= 0) return '0分';
+  if (m < 60) return m + '分';
+  const h = Math.floor(m / 60), mm = m % 60;
+  return mm ? `${h}時間${mm}分` : `${h}時間`;
+}
+
+function updateProcEstimate() {
+  const el = document.getElementById('procEstimate');
+  if (!el) return;
+  const { floor, hame, total } = calcProcTime();
+  if (total <= 0) { el.innerHTML = '<span class="pe-empty">加工予定なし</span>'; return; }
+  el.innerHTML =
+    `<span class="pe-item"><span class="pe-label">フローリング(15mm)</span><span class="pe-val">${fmtMin(floor)}</span></span>` +
+    `<span class="pe-item"><span class="pe-label">羽目板(12mm)</span><span class="pe-val">${fmtMin(hame)}</span></span>` +
+    `<span class="pe-item pe-total"><span class="pe-label">合計</span><span class="pe-val">${fmtMin(total)}</span></span>`;
 }
 
 function autoFitCells() {
