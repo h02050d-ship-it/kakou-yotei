@@ -34,6 +34,7 @@
   .proc-estimate .pe-label { font-size: 12px; font-weight: 600; opacity: .9; }
   .proc-estimate .pe-val { font-size: 18px; font-weight: 800; }
   .proc-estimate .pe-empty { font-size: 13px; opacity: .8; }
+  .proc-estimate .pe-note { font-size: 11px; font-weight: 500; opacity: .75; white-space: nowrap; }
   .btn {
     background: rgba(255,255,255,.2); border: none; color: #fff;
     padding: 6px 14px; border-radius: 6px; font-size: 14px;
@@ -595,7 +596,8 @@ function updateProcEstimate() {
   el.innerHTML =
     `<span class="pe-item"><span class="pe-label">フローリング(15mm)</span><span class="pe-val">${fmtMin(floor)}</span></span>` +
     `<span class="pe-item"><span class="pe-label">羽目板(12mm)</span><span class="pe-val">${fmtMin(hame)}</span></span>` +
-    `<span class="pe-item pe-total"><span class="pe-label">合計</span><span class="pe-val">${fmtMin(total)}</span></span>`;
+    `<span class="pe-item pe-total"><span class="pe-label">合計</span><span class="pe-val">${fmtMin(total)}</span></span>` +
+    `<span class="pe-note">※加在チェック分は除外</span>`;
 }
 
 function autoFitCells() {
