@@ -238,6 +238,12 @@
     <div id="nouhinModalBody"></div>
   </div>
 </div>
+<div class="modal-overlay" id="shukkaModal" onclick="if(event.target===this)closeShukkaModal()">
+  <div class="modal">
+    <div class="modal-head">出荷依頼テキストを作成<button class="modal-close" onclick="closeShukkaModal()">&times;</button></div>
+    <div id="shukkaModalBody"></div>
+  </div>
+</div>
 <div class="main" id="mainArea">
   <div class="loading"><div class="spinner"></div>読み込み中...</div>
 </div>
@@ -490,7 +496,7 @@ function render() {
   const kanryoArchived = kanryo.filter(i => isArchived(itemKey(i)))
     .sort((a, b) => (b.archived_at || 0) - (a.archived_at || 0));
 
-  html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button></div>`;
+  html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button><button class="btn-add" style="background:#06C755;margin-left:6px" onclick="showShukkaModal()">🚚 出荷依頼</button></div>`;
   if (kanryoVisible.length) {
     html += `<div class="table-scroll kanryo-scroll"><table class="tbl-kanryo" id="tbl-kanryo"><thead><tr>`;
     kanryoCols.forEach((c,i) => {
@@ -1126,8 +1132,65 @@ function buildNouhin(custAbbrev){
   closeNouhinModal();
 }
 
+// ===== 出荷依頼テキスト作成（業者の出荷専用LINEへ貼り付け用） =====
+// 文面は「✅/⬜ 長さ(m) 束数」のみ。選択画面では品名・寸法も表示。
+function shkNum(v){ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; }
+function shkLenM(l){ const n=parseFloat(String(l==null?'':l).replace(/[^0-9.]/g,'')); if(isNaN(n)) return String(l||''); return (Math.round(n/10)/100)+'m'; }
+function shkDone(it){ const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9; }
+function shkCandidates(){
+  return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); return l && l!=='-'; });
+}
+function showShukkaModal(){
+  const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const cand=shkCandidates().slice().sort((a,b)=>{
+    const da=shkDone(a),db=shkDone(b); if(da!==db) return da?-1:1;
+    return (shkNum(a.length)||0)-(shkNum(b.length)||0);
+  });
+  const body=document.getElementById('shukkaModalBody');
+  if(!cand.length){ body.innerHTML='<div style="padding:20px;color:#888">対象の品目がありません（製造中・製造完了の品目が出ます）</div>'; document.getElementById('shukkaModal').classList.add('show'); return; }
+  let html='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：製造完了）。文面は長さ＋束数＋完了マークのみ。</div><div style="max-height:42vh;overflow:auto;padding:0 16px">';
+  cand.forEach(it=>{
+    const done=shkDone(it); const k=itemKey(it);
+    const bun=shkNum(it.actual)!=null?shkNum(it.actual):shkNum(it.planned);
+    const sub=`${HINMEI_NAME[it.hinmei]||it.hinmei||'?'} ${it.grade||''} ${it.thickness||''}×${it.width||''}×${it.length||''}`;
+    html+=`<label style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid #eee;cursor:pointer">
+      <input type="checkbox" class="shk-cb" data-key="${k}" ${done?'checked':''} onchange="renderShukkaText()">
+      <span style="font-size:18px">${done?'✅':'⬜'}</span>
+      <span style="flex:1"><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> <span style="color:#999;font-size:12px">${e(sub)}${done?'':' ・製造中'}</span></span>
+    </label>`;
+  });
+  html+='</div>';
+  html+='<div style="padding:10px 16px;border-top:1px solid #ddd"><textarea id="shukkaText" readonly style="width:100%;height:150px;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box"></textarea>';
+  html+='<button onclick="copyShukka(this)" style="margin-top:8px;width:100%;padding:11px;background:#06C755;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">📋 コピー（出荷LINEに貼り付け）</button></div>';
+  body.innerHTML=html;
+  document.getElementById('shukkaModal').classList.add('show');
+  renderShukkaText();
+}
+function renderShukkaText(){
+  const items=[...document.querySelectorAll('.shk-cb:checked')].map(cb=>allItems.find(it=>itemKey(it)===cb.dataset.key)).filter(Boolean);
+  const d=new Date(); const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+  let done=0,und=0;
+  const lines=items.map(it=>{
+    const dn=shkDone(it); dn?done++:und++;
+    const bun=shkNum(it.actual)!=null?shkNum(it.actual):shkNum(it.planned);
+    const suf=dn?'':(it.kessoku_jun?'（結束予定）':'（製造中）');
+    return `${dn?'✅':'⬜'} ${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}${suf}`;
+  });
+  let txt='【出荷依頼】林材木店  '+date+'\n\n'+(lines.length?lines.join('\n'):'(品目未選択)');
+  txt+=`\n\n計${items.length}件（完了${done}／未完了${und}）`;
+  const ta=document.getElementById('shukkaText'); if(ta) ta.value=txt;
+}
+function copyShukka(btn){
+  const ta=document.getElementById('shukkaText'); if(!ta) return;
+  ta.select(); ta.setSelectionRange(0,99999);
+  const ok=()=>{ const o=btn.textContent; btn.textContent='✅ コピーしました'; setTimeout(()=>btn.textContent=o,1500); };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(ta.value).then(ok).catch(()=>{document.execCommand('copy');ok();}); }
+  else { document.execCommand('copy'); ok(); }
+}
+function closeShukkaModal(){ document.getElementById('shukkaModal').classList.remove('show'); }
+
 // 製造完了データをスプレッドシートに同期
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyE2O2zEk1NDYskaxflVtPReblSOyA5CyjfHTNXAYzK6tX1zgEzRypcFFSjtDy2SWa7wg/exec';
+const GAS_URL ='https://script.google.com/macros/s/AKfycbyE2O2zEk1NDYskaxflVtPReblSOyA5CyjfHTNXAYzK6tX1zgEzRypcFFSjtDy2SWa7wg/exec';
 let syncTimer = null;
 function syncToSheet() {
   if (syncTimer) clearTimeout(syncTimer);
