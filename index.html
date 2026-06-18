@@ -1168,7 +1168,7 @@ function shkSkip(c){ return /^(ヤフ|楽天|ネット)/.test((c||'').trim()); }
 function shkNew(it){ return !it.shk_sent; }              // まだ送信していない＝新規
 function shkStatusLabel(it){ return shkDone(it)?'製造完了':'製造未完了'; }
 function shkCandidates(){
-  return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; return true; });
+  return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; return true; });
 }
 // 取引先ごとにグループ化。各群内は新規→既送、完了→未完了、長さ昇順。
 function shkGroups(items){
