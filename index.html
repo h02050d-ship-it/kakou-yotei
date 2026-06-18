@@ -200,6 +200,7 @@
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
   .tosou-on { background: #e1bee7 !important; }
+  .width-alert { background: #ffd54f !important; }
 
   /* Row drag */
   .drag-handle {
@@ -372,6 +373,17 @@ function cellRenderers(it, sz) {
   const ordCur=getVal(it,'order');
   const av=getVal(it,'actual');
 
+  // 実際: 予定の数字を先頭に置き、その下を1から並べる（予定が未設定なら従来の1〜54）
+  const plannedNum = parseInt(getVal(it,'planned'));
+  let actOpts;
+  if (!isNaN(plannedNum) && plannedNum >= 1) {
+    actOpts = ['-', String(plannedNum)];
+    for (let i = 1; i < plannedNum; i++) actOpts.push(String(i));
+    actOpts.push('配送確認','支払確認','塗装中');
+  } else {
+    actOpts = actualOpts;
+  }
+
   return {
     dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
     jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${junCur===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
@@ -384,7 +396,7 @@ function cellRenderers(it, sz) {
     length: genSel(it,'length',['-','910','1820','2000','3000','4000','300'],sz,'dim'),
     qty: genSel(it,'qty',['-','8','10','20','40','2'],sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
-    actual: genSel(it,'actual',actualOpts,sz,'bnum'),
+    actual: genSel(it,'actual',actOpts,sz,'bnum'),
     seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
     danball: `<input type="checkbox" class="cb-seal" ${getVal(it,'danball')==='有'?'checked':''} data-key="${k}" data-field="danball" onchange="onSealChange(this)">`,
     ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
@@ -405,6 +417,7 @@ function buildRow(it, sz, cols) {
     if (isZaiko && (col === 'planned' || col === 'actual')) classes.push('zaiko-on');
     if (isRyoutan && col === 'length') classes.push('ryoutan-on');
     if (isTosou && col === 'planned') classes.push('tosou-on');
+    if (col === 'width' && getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
     const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
     return `<td${clsAttr}>${r[col]}</td>`;
   };
@@ -947,6 +960,17 @@ function onGenSelChange(el) {
       if (el.value === '1820') saveField(el.dataset.key, 'qty', '10');
       else if (el.value === '3000') saveField(el.dataset.key, 'qty', '10');
       else if (el.value === '4000') saveField(el.dataset.key, 'qty', '8');
+    }
+    // 実際が予定と同数になったら製造順を9にして製造完了へ移動
+    if (el.dataset.field === 'actual') {
+      const it = allItems.find(i => itemKey(i) === el.dataset.key);
+      const pNum = it ? parseInt(getVal(it,'planned')) : NaN;
+      const aNum = parseInt(el.value);
+      if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) {
+        if (String(it.order) !== '9') it.completed_at = Date.now();
+        it.order = '9';
+        saveItem(it);
+      }
     }
   }
 }
