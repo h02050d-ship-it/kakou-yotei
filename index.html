@@ -45,7 +45,7 @@
   .main { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
   .main-content { flex-shrink: 0; }
   .kanryo-spacer { flex: 1; min-height: 20px; }
-  .kanryo-section { flex-shrink: 0; }
+  .kanryo-section { flex-shrink: 0; padding-bottom: 35vh; }
 
   .sec-head {
     padding: 8px 16px 4px; display: flex; align-items: center; gap: 8px;
@@ -139,6 +139,22 @@
   .sel:focus { outline: 2px solid #1a73e8; }
   .sel-ord { background: #f0f0f0; border-radius: 20px; width: auto; padding: 2px 10px; min-width: 2.5em; }
   .sel-jun { background: #fff3e0; color: #e65100; font-weight: 800; border-radius: 6px; width: auto; padding: 2px 10px; min-width: 2.5em; }
+
+  /* 自前ドロップダウン（常に下方向に開く） */
+  .cdrop { display: flex; align-items: center; justify-content: center; white-space: nowrap; cursor: pointer; }
+  .cdrop-menu {
+    position: fixed; z-index: 3000; background: #fff;
+    border: 1px solid #9e9e9e; border-radius: 8px; padding: 2px 0;
+    box-shadow: 0 6px 24px rgba(0,0,0,.28);
+    overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
+  }
+  .cdrop-opt {
+    padding: 9px 18px; font-size: 18px; font-weight: 700; color: #222;
+    cursor: pointer; white-space: nowrap; text-align: center;
+  }
+  .cdrop-opt:hover { background: #e3f2fd; }
+  .cdrop-opt.cdrop-cur { background: #1a73e8; color: #fff !important; }
+  .cdrop-opt.cdrop-other { color: #888; font-weight: 500; font-size: 14px; border-top: 1px solid #eee; }
 
   .btn-del {
     background: none; border: 1px solid #ccc; color: #999; border-radius: 4px;
@@ -348,20 +364,62 @@ const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','�
 const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#2e7d32','無節':'#1565c0','無節特上':'#6a1b9a','生節':'#795548'};
 const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
 const actualOpts = [...numOpts,'配送確認','支払確認','塗装中'];
+// 自前ドロップダウン用のオプション保管（描画ごとに更新）。ネイティブselectは画面下端で
+// 上向きに開くため、常に下方向へ開く独自ドロップダウンに置き換えている。
+const cdropData = {};
 function genSel(it,field,options,sz,cls,colorMap){
-  const cur=String(getVal(it,field));
+  const key = itemKey(it);
+  const cur = String(getVal(it,field));
   const inList = options.some(v => String(v) === cur);
-  let opts = options.map(v=>{
-    const c = colorMap && colorMap[v];
-    const st = c ? ` style="color:${c};font-weight:700"` : '';
-    return `<option value="${v}"${st} ${cur===String(v)?'selected':''}>${v}</option>`;
-  }).join('');
-  if (!inList && cur) opts += `<option value="${cur}" selected>${cur}</option>`;
-  opts += `<option value="__other__">その他...</option>`;
+  const opts = (inList || !cur) ? options.slice() : [...options, cur];
+  cdropData[key + ' ' + field] = { opts, colorMap: colorMap || null };
+  const e = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   const curColor = colorMap && colorMap[cur];
   const selStyle = curColor ? ` style="color:${curColor};font-weight:700"` : '';
-  return `<select class="sel ${cls||''}"${selStyle} data-key="${itemKey(it)}" data-field="${field}" onchange="onGenSelChange(this)">${opts}</select>`;
+  const disp = cur !== '' ? cur : '-';
+  return `<div class="sel cdrop ${cls||''}"${selStyle} tabindex="0" data-key="${e(key)}" data-field="${field}" onclick="openCDrop(this,event)">${e(disp)}</div>`;
 }
+
+// ===== 自前ドロップダウンの開閉（常に下方向に開く） =====
+let openDropEl = null, openDropAnchor = null;
+function closeCDrop(){
+  if (openDropEl){ openDropEl.remove(); openDropEl = null; openDropAnchor = null; }
+}
+function openCDrop(el, ev){
+  if (ev){ ev.stopPropagation(); ev.preventDefault(); }
+  const wasAnchor = openDropAnchor;
+  closeCDrop();
+  if (wasAnchor === el) return;            // 同じものを再タップ → 閉じる
+  const data = cdropData[el.dataset.key + ' ' + el.dataset.field];
+  if (!data) return;
+  const cur = el.textContent.trim();
+  const menu = document.createElement('div');
+  menu.className = 'cdrop-menu';
+  const addOpt = (val, label, extraCls) => {
+    const o = document.createElement('div');
+    o.className = 'cdrop-opt' + (extraCls || '') + (String(val) === cur ? ' cdrop-cur' : '');
+    o.textContent = label;
+    const c = data.colorMap && data.colorMap[val];
+    if (c){ o.style.color = c; o.style.fontWeight = '700'; }
+    o.addEventListener('click', ev2 => { ev2.stopPropagation(); closeCDrop(); chooseCDrop(el, val); });
+    menu.appendChild(o);
+  };
+  data.opts.forEach(v => addOpt(v, v));
+  addOpt('__other__', 'その他...', ' cdrop-other');
+  document.body.appendChild(menu);
+  const r = el.getBoundingClientRect();
+  menu.style.left = Math.round(r.left) + 'px';
+  menu.style.top = Math.round(r.bottom) + 'px';            // 常にセルの下に開く
+  menu.style.minWidth = Math.round(r.width) + 'px';
+  menu.style.maxHeight = Math.max(window.innerHeight - r.bottom - 8, 100) + 'px';
+  openDropEl = menu; openDropAnchor = el;
+}
+function chooseCDrop(el, val){
+  onGenSelChange({ value: val, dataset: el.dataset });
+}
+document.addEventListener('click', () => closeCDrop());
+document.addEventListener('scroll', () => closeCDrop(), true);
+window.addEventListener('resize', () => closeCDrop());
 function cellRenderers(it, sz) {
   const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const k=itemKey(it), ea=(f)=>`contenteditable="true" data-key="${k}" data-field="${f}" onblur="onCellEdit(this)"`;
@@ -617,7 +675,7 @@ function updateProcEstimate() {
 
 function autoFitCells() {
   document.querySelectorAll('.tbl-kessoku td, .tbl-seizou td, .tbl-kanryo td').forEach(td => {
-    const sel = td.querySelector('select');
+    const sel = td.querySelector('select, .cdrop');
     const el = sel || td;
     if (!sel && td.getAttribute('contenteditable') !== 'true' && !td.classList.contains('rmk') && !td.classList.contains('cust')) return;
     el.style.fontSize = '';
@@ -816,6 +874,8 @@ let selAnchorTd = null;
 let selExtending = false; // true between first click and confirm
 
 function cellText(td) {
+  const cd = td.querySelector('.cdrop');
+  if (cd) return cd.textContent.trim();
   const sel = td.querySelector('select');
   if (sel) return sel.options[sel.selectedIndex]?.text || sel.value || '';
   const cb = td.querySelector('input[type="checkbox"]');
@@ -901,7 +961,7 @@ document.addEventListener('click', e => {
       selExtending = false;
     } else {
       // Start new selection (if click on non-interactive cell)
-      if (!e.target.closest('input, select, button, [contenteditable="true"]')) {
+      if (!e.target.closest('input, select, button, .cdrop, [contenteditable="true"]')) {
         clearCellSel();
         td.classList.add('cell-selected');
         selAnchorTd = td;
