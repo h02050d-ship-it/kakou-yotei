@@ -1028,28 +1028,37 @@ function onGenSelChange(el) {
       else if (el.value === '3000') saveField(el.dataset.key, 'qty', '10');
       else if (el.value === '4000') saveField(el.dataset.key, 'qty', '8');
     }
-    // 実際が予定と同数になったら製造順を9にして製造完了へ移動
+    // 実際が予定と同数になったら製造順を9にして完了へ移動
     if (el.dataset.field === 'actual') {
       const it = allItems.find(i => itemKey(i) === el.dataset.key);
       const pNum = it ? parseInt(getVal(it,'planned')) : NaN;
       const aNum = parseInt(el.value);
-      if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) {
-        if (String(it.order) !== '9') it.completed_at = Date.now();
-        it.order = '9';
-        saveItem(it);
-      }
+      if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) completeItem(it);
     }
   }
+}
+// 楽天・ヤフーの取引先は製造完了を飛ばして直接「出荷完了」へ入れる
+function isDirectShip(customer) {
+  const c = String(customer || '');
+  return c.includes('楽天') || c.includes('ヤフー') || /yahoo/i.test(c);
+}
+// 製造順を9（完了）にする共通処理。楽天・ヤフーはそのまま出荷完了へ
+function completeItem(it) {
+  if (String(it.order) !== '9') it.completed_at = Date.now();
+  it.order = '9';
+  if (isDirectShip(it.customer)) {
+    it.archived = '1';
+    if (!it.archived_at) it.archived_at = Date.now();
+  }
+  saveItem(it);
 }
 function onOrdChange(el) {
   const key = el.dataset.key;
   const val = el.value;
   const it = allItems.find(i => itemKey(i) === key);
-  // 製造順が9になったら完了日時を記録
-  if (val === '9' && it && it.order !== '9') {
-    it.completed_at = Date.now();
-    it.order = val;
-    saveItem(it);
+  // 製造順が9になったら完了処理（楽天・ヤフーは出荷完了へ直行）
+  if (val === '9' && it) {
+    completeItem(it);
   } else {
     saveField(key, 'order', val);
   }
