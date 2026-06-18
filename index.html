@@ -31,6 +31,7 @@
     display: flex; align-items: baseline; gap: 6px; white-space: nowrap;
   }
   .proc-estimate .pe-total { background: rgba(255,255,255,.34); }
+  .proc-estimate .pe-title { font-size: 14px; font-weight: 800; opacity: .95; margin-right: 4px; white-space: nowrap; }
   .proc-estimate .pe-label { font-size: 12px; font-weight: 600; opacity: .9; }
   .proc-estimate .pe-val { font-size: 18px; font-weight: 800; }
   .proc-estimate .pe-empty { font-size: 13px; opacity: .8; }
@@ -668,8 +669,9 @@ function updateProcEstimate() {
   const el = document.getElementById('procEstimate');
   if (!el) return;
   const { floor, hame, total } = calcProcTime();
-  if (total <= 0) { el.innerHTML = '<span class="pe-empty">加工予定なし</span>'; return; }
+  if (total <= 0) { el.innerHTML = '<span class="pe-title">⏱ 予想加工時間</span><span class="pe-empty">加工予定なし</span>'; return; }
   el.innerHTML =
+    `<span class="pe-title">⏱ 予想加工時間</span>` +
     `<span class="pe-item"><span class="pe-label">フローリング(15mm)</span><span class="pe-val">${fmtMin(floor)}</span></span>` +
     `<span class="pe-item"><span class="pe-label">羽目板(12mm)</span><span class="pe-val">${fmtMin(hame)}</span></span>` +
     `<span class="pe-item pe-total"><span class="pe-label">合計</span><span class="pe-val">${fmtMin(total)}</span></span>` +
