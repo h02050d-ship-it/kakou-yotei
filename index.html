@@ -373,12 +373,14 @@ function cellRenderers(it, sz) {
   const ordCur=getVal(it,'order');
   const av=getVal(it,'actual');
 
-  // 実際: 予定の数字を先頭に置き、その下を1から並べる（予定が未設定なら従来の1〜54）
+  // 実際: 予定の数字を先頭に、次に予定より多め(+1〜+5)、その後に少なめ(1〜予定-1)を並べる
+  //（予定が未設定なら従来の1〜54）。実際は予定より多くなる場合があるため+5まで選べる。
   const plannedNum = parseInt(getVal(it,'planned'));
   let actOpts;
   if (!isNaN(plannedNum) && plannedNum >= 1) {
     actOpts = ['-', String(plannedNum)];
-    for (let i = 1; i < plannedNum; i++) actOpts.push(String(i));
+    for (let i = 1; i <= 5; i++) actOpts.push(String(plannedNum + i)); // 予定より多め(+1〜+5)
+    for (let i = 1; i < plannedNum; i++) actOpts.push(String(i));      // 予定より少なめ
     actOpts.push('配送確認','支払確認','塗装中');
   } else {
     actOpts = actualOpts;
