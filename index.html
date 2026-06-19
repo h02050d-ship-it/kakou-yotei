@@ -32,6 +32,22 @@
   }
   .proc-estimate .pe-total { background: rgba(255,255,255,.34); }
   .proc-estimate .pe-title { font-size: 14px; font-weight: 800; opacity: .95; margin-right: 4px; white-space: nowrap; }
+  .proc-estimate .pe-help {
+    width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,.7); background: rgba(255,255,255,.18);
+    color: #fff; font-weight: 800; font-size: 13px; cursor: pointer; line-height: 1;
+    display: flex; align-items: center; justify-content: center; padding: 0;
+  }
+  .proc-estimate .pe-help:hover { background: rgba(255,255,255,.35); }
+  .calc-body { padding: 16px 20px; font-size: 15px; line-height: 1.7; color: #333; }
+  .calc-body p { margin-bottom: 10px; }
+  .calc-body ul { margin: 10px 0 0 18px; }
+  .calc-body li { margin-bottom: 8px; }
+  .calc-formula {
+    background: #eef4ff; border: 1px solid #cfe0ff; border-radius: 8px;
+    padding: 12px 14px; font-weight: 700; color: #1a3a6b; text-align: center;
+    margin: 10px 0; font-size: 15px;
+  }
   .proc-estimate .pe-label { font-size: 12px; font-weight: 600; opacity: .9; }
   .proc-estimate .pe-val { font-size: 18px; font-weight: 800; }
   .proc-estimate .pe-empty { font-size: 13px; opacity: .8; }
@@ -255,6 +271,21 @@
   <div class="modal">
     <div class="modal-head">納品書を作成する取引先<button class="modal-close" onclick="closeNouhinModal()">&times;</button></div>
     <div id="nouhinModalBody"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="calcModal" onclick="if(event.target===this)closeCalcModal()">
+  <div class="modal">
+    <div class="modal-head">予想加工時間の計算方法<button class="modal-close" onclick="closeCalcModal()">&times;</button></div>
+    <div class="calc-body">
+      <p>各行の加工時間を厚さ別に合計し、<b>10分単位に丸めて</b>表示しています。</p>
+      <div class="calc-formula">1行の時間 = 4分 × (長さ ÷ 4000) × (入数 ÷ 8) × 束数 × 1.1</div>
+      <ul>
+        <li><b>基準</b>：4m・8枚入・1束 = 4分（これに1割増し ×1.1）</li>
+        <li><b>束数</b>：「予定」の数字。「実際」に数字が入っている場合は <b>予定 − 実際</b>（残り分）で計算</li>
+        <li><b>分類</b>：厚さ15mm = フローリング ／ 12mm = 羽目板</li>
+        <li><b>除外</b>：加在チェック済み・製造完了の行は計算に入れません</li>
+      </ul>
+    </div>
   </div>
 </div>
 <div class="modal-overlay" id="shukkaModal" onclick="if(event.target===this)closeShukkaModal()">
@@ -637,7 +668,8 @@ function render() {
 
 // ===== 加工予定時間の計算 =====
 // 基準: 4m・8枚入・1束 = 4分、これに1割増し(×1.1)
-// 各行: 4 × (長さ/4000) × (入数/8) × 予定(束数) × 1.1
+// 各行: 4 × (長さ/4000) × (入数/8) × 束数 × 1.1
+// 束数 = 予定。ただし加在チェックなしで実際に数字があれば 予定-実際（残り分）で計算。
 // 加在チェック済み・製造完了は除外。15mm=フローリング / 12mm=羽目板
 function calcProcTime() {
   let floor = 0, hame = 0;
@@ -647,8 +679,12 @@ function calcProcTime() {
     if (getVal(it, 'zaiko') === '1') return;       // 加在チェック済みは除外
     const len = parseFloat(getVal(it, 'length')) || 0;
     const qty = parseFloat(getVal(it, 'qty')) || 0;
-    const bundles = parseFloat(getVal(it, 'planned')) || 0;
-    if (!len || !qty || !bundles) return;
+    const planned = parseFloat(getVal(it, 'planned')) || 0;
+    if (!len || !qty || !planned) return;
+    // 実際に数字が入っていれば、その分はもう加工済みとして残り束数で計算
+    const actualNum = parseInt(getVal(it, 'actual'));
+    const bundles = !isNaN(actualNum) ? Math.max(0, planned - actualNum) : planned;
+    if (bundles <= 0) return;
     const t = 4 * (len / 4000) * (qty / 8) * bundles * 1.1;
     const thick = String(getVal(it, 'thickness'));
     if (thick === '15') floor += t;
@@ -669,9 +705,10 @@ function updateProcEstimate() {
   const el = document.getElementById('procEstimate');
   if (!el) return;
   const { floor, hame, total } = calcProcTime();
-  if (total <= 0) { el.innerHTML = '<span class="pe-title">⏱ 予想加工時間</span><span class="pe-empty">加工予定なし</span>'; return; }
+  const help = `<button class="pe-help" onclick="showCalcModal()" title="計算方法">?</button>`;
+  if (total <= 0) { el.innerHTML = '<span class="pe-title">⏱ 予想加工時間</span>' + help + '<span class="pe-empty">加工予定なし</span>'; return; }
   el.innerHTML =
-    `<span class="pe-title">⏱ 予想加工時間</span>` +
+    `<span class="pe-title">⏱ 予想加工時間</span>` + help +
     `<span class="pe-item"><span class="pe-label">フローリング(15mm)</span><span class="pe-val">${fmtMin(floor)}</span></span>` +
     `<span class="pe-item"><span class="pe-label">羽目板(12mm)</span><span class="pe-val">${fmtMin(hame)}</span></span>` +
     `<span class="pe-item pe-total"><span class="pe-label">合計</span><span class="pe-val">${fmtMin(total)}</span></span>` +
@@ -1120,6 +1157,8 @@ function showSealModal() {
   });
 }
 function closeSealModal() { document.getElementById('sealModal').classList.remove('show'); }
+function showCalcModal() { document.getElementById('calcModal').classList.add('show'); }
+function closeCalcModal() { document.getElementById('calcModal').classList.remove('show'); }
 
 // ===== 納品書連携：略称→正式名称、製造完了→納品書ツール =====
 const NOUHIN_URL = 'https://hayazai.com/nouhin/n29im17c/';
