@@ -1281,7 +1281,7 @@ function showShukkaModal(){
 }
 function renderShukkaText(){
   const items=[...document.querySelectorAll('.shk-cb:checked')].map(cb=>allItems.find(it=>itemKey(it)===cb.dataset.key)).filter(Boolean);
-  const d=new Date(); const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+  const d=new Date(); const wd=['日','月','火','水','木','金','土'][d.getDay()]; const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'（'+wd+'）';
   const g=shkGroups(items);
   const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
   let done=0,und=0; const blocks=[];
@@ -1293,7 +1293,7 @@ function renderShukkaText(){
     });
     blocks.push('■ '+c+'\n'+lines.join('\n'));
   });
-  let txt='【出荷依頼】林材木店  '+date+'\n\n'+(blocks.length?blocks.join('\n\n'):'(品目未選択)');
+  let txt=date+'\n\n'+(blocks.length?blocks.join('\n\n'):'(品目未選択)');
   txt+=`\n\n計${items.length}件（製造完了${done}／製造未完了${und}）`;
   const ta=document.getElementById('shukkaText'); if(ta) ta.value=txt;
 }
