@@ -1334,6 +1334,7 @@ function renderShukkaText(){
   });
   let txt=date+'\n\n'+(blocks.length?blocks.join('\n\n'):'(品目未選択)');
   txt+=`\n\n計${items.length}件（完了${done}／未完了${und}）`;
+  txt+='\n\n※「現状」と送ると、最新の情報をお返しします。';
   const ta=document.getElementById('shukkaText'); if(ta) ta.value=txt;
 }
 function copyShukka(btn){
