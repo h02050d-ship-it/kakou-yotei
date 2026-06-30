@@ -1328,7 +1328,8 @@ function showShukkaModal(){
   const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
   const body=document.getElementById('shukkaModalBody');
   if(!custs.length){ body.innerHTML='<div style="padding:20px;color:#888">対象の品目がありません（楽天・ヤフー・ネットは除外）</div>'; document.getElementById('shukkaModal').classList.add('show'); return; }
-  let html='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択。滝川・ひかり・ナイス沼津は自社配送が多いため既定OFF）。右の「NEW」を入れた品目だけ🆕が付きます。</div>';
+  let html='<style>#shkList .shk-row{transition:opacity .12s}#shkList .shk-row:has(input.shk-cb:not(:checked)){opacity:.38}#shkList .shk-row:has(input.shk-cb:not(:checked)) b{text-decoration:line-through}</style>';
+  html+='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択。滝川・ひかり・ナイス沼津は自社配送が多いため既定OFF）。チェックを外した品目は薄く表示（＝送りません）。右の「NEW」を入れた品目だけ🆕が付きます。</div>';
   html+='<div id="shkList" style="max-height:42vh;overflow:auto;padding:0 16px">';
   custs.forEach(c=>{
     const offDefault=shkDefaultOff(c); // 自社配送が多い取引先は既定OFF（表示はする）
@@ -1338,7 +1339,7 @@ function showShukkaModal(){
       const done=shkDone(it); const k=itemKey(it); const bun=shkBun(it);
       const sub=`${HINMEI_NAME[it.hinmei]||it.hinmei||'?'} ${it.grade||''} ${it.thickness||''}×${it.width||''}×${it.length||''}`;
       const badge=done?'<span style="color:#2e7d32;font-weight:700;font-size:11px">完了</span>':'<span style="color:#e65100;font-weight:700;font-size:11px">未完了</span>';
-      html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee">
+      html+=`<div class="shk-row" style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee">
         <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
           <input type="checkbox" class="shk-cb" data-key="${k}" ${offDefault?'':'checked'} onchange="renderShukkaText()">
           <span style="flex:1"><span class="shk-newmark" data-key="${k}" style="display:none">🆕 </span><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
