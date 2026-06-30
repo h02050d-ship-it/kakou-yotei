@@ -1281,6 +1281,11 @@ function shkDone(it){ const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9
 function shkBun(it){ const b=shkNum(it.actual); return b!=null?b:shkNum(it.planned); }
 function shkSkip(c){ return /^(ヤフ|楽天|ネット)/.test((c||'').trim()); }
 function shkNew(it){ return !it.shk_sent; }              // まだ送信していない＝新規
+// 🆕NEW判定：行キー add_<ミリ秒>_xxx の追加日時を見て、直近SHK_NEW_DAYS日以内なら新規。
+// 旧データ（add_形式でないキー）は追加日時不明→新規扱いしない（過去の「初回送信で既存品まで全部NEW」誤爆を回避）。
+const SHK_NEW_DAYS = 3;
+function shkAddedAt(it){ const k=String((it&&it._uid)||''); const m=k.match(/^add_(\d{10,})_/); return m?parseInt(m[1],10):null; }
+function shkIsNew(it){ const t=shkAddedAt(it); return t!=null && (Date.now()-t) <= SHK_NEW_DAYS*86400000; }
 function shkStatusLabel(it){ return shkDone(it)?'完了':'未完了'; }
 function shkCandidates(){
   return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true; });
@@ -1318,7 +1323,7 @@ function showShukkaModal(){
       const badge=done?'<span style="color:#2e7d32;font-weight:700;font-size:11px">完了</span>':'<span style="color:#e65100;font-weight:700;font-size:11px">未完了</span>';
       html+=`<label style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee;cursor:pointer">
         <input type="checkbox" class="shk-cb" data-key="${k}" ${offDefault?'':'checked'} onchange="renderShukkaText()">
-        <span style="flex:1"><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
+        <span style="flex:1">${shkIsNew(it)?'🆕 ':''}<b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
       </label>`;
     });
   });
@@ -1339,7 +1344,7 @@ function renderShukkaText(){
     const lines=g[c].map(it=>{
       const dn=shkDone(it); dn?done++:und++;
       const bun=shkBun(it);
-      return `${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
+      return `${shkIsNew(it)?'🆕 ':''}${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
     });
     blocks.push('■ '+c+'\n'+lines.join('\n'));
   });
