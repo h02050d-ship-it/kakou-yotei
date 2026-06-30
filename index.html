@@ -1325,7 +1325,11 @@ function shkDefaultOff(c){
 function showShukkaModal(){
   const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const g=shkGroups(shkCandidates());
-  const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
+  const custs=Object.keys(g).sort((a,b)=>{
+    const oa=shkDefaultOff(a)?1:0, ob=shkDefaultOff(b)?1:0; // 自社配送(既定OFF＝薄い)は一番下へ
+    if(oa!==ob) return oa-ob;
+    return a.localeCompare(b,'ja');
+  });
   const body=document.getElementById('shukkaModalBody');
   if(!custs.length){ body.innerHTML='<div style="padding:20px;color:#888">対象の品目がありません（楽天・ヤフー・ネットは除外）</div>'; document.getElementById('shukkaModal').classList.add('show'); return; }
   let html='<style>#shkList .shk-row{transition:opacity .12s}#shkList .shk-row:has(input.shk-cb:not(:checked)){opacity:.38}#shkList .shk-row:has(input.shk-cb:not(:checked)) b{text-decoration:line-through}</style>';
