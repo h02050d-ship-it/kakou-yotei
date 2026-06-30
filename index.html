@@ -1294,6 +1294,20 @@ function toggleShkNew(el){
   const list=document.getElementById('shkList'); if(list) list.classList.toggle('shk-hidenew', !shkShowNew);
   renderShukkaText();
 }
+// 送信文の手動編集モード。trueの間はrenderShukkaTextで自動上書きしない（手直しを保持）。
+let shkManual=false;
+function toggleShkEdit(btn){
+  const ta=document.getElementById('shukkaText'); if(!ta) return;
+  shkManual=!shkManual;
+  if(shkManual){
+    ta.removeAttribute('readonly'); ta.style.background='#fffdf0'; ta.focus();
+    btn.textContent='↩ 自動に戻す';
+  } else {
+    ta.setAttribute('readonly',''); ta.style.background='';
+    btn.textContent='✏️ 編集';
+    renderShukkaText(); // 選択内容から再生成
+  }
+}
 function shkStatusLabel(it){ return shkDone(it)?'完了':'未完了'; }
 function shkCandidates(){
   return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true; });
@@ -1340,12 +1354,15 @@ function showShukkaModal(){
   });
   html+='</div>';
   html+='<div style="padding:10px 16px;border-top:1px solid #ddd"><textarea id="shukkaText" readonly style="width:100%;height:160px;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box"></textarea>';
+  html+='<div style="display:flex;justify-content:flex-end;margin-top:6px"><button id="shkEditBtn" onclick="toggleShkEdit(this)" style="padding:6px 12px;background:#fff;color:#1a73e8;border:1px solid #1a73e8;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✏️ 編集</button></div>';
   html+='<button onclick="sendShukka(this)" style="margin-top:8px;width:100%;padding:12px;background:#06C755;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">📤 内藤運輸へ送信</button></div>';
   body.innerHTML=html;
   document.getElementById('shukkaModal').classList.add('show');
+  shkManual=false; // 開くたび自動生成モードに戻す
   renderShukkaText();
 }
 function renderShukkaText(){
+  if(shkManual) return; // 手動編集中は自動上書きしない
   const items=[...document.querySelectorAll('.shk-cb:checked')].map(cb=>allItems.find(it=>itemKey(it)===cb.dataset.key)).filter(Boolean);
   const d=new Date(); const wd=['日','月','火','水','木','金','土'][d.getDay()]; const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'（'+wd+'）';
   const g=shkGroups(items);
