@@ -1281,17 +1281,11 @@ function shkDone(it){ const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9
 function shkBun(it){ const b=shkNum(it.actual); return b!=null?b:shkNum(it.planned); }
 function shkSkip(c){ return /^(ヤフ|楽天|ネット)/.test((c||'').trim()); }
 function shkNew(it){ return !it.shk_sent; }              // まだ送信していない＝新規
-// 🆕NEW判定：行キー add_<ミリ秒>_xxx の追加日時を見て、直近SHK_NEW_DAYS日以内なら新規。
-// 旧データ（add_形式でないキー）は追加日時不明→新規扱いしない（過去の「初回送信で既存品まで全部NEW」誤爆を回避）。
-const SHK_NEW_DAYS = 3;
-function shkAddedAt(it){ const k=String((it&&it._uid)||''); const m=k.match(/^add_(\d{10,})_/); return m?parseInt(m[1],10):null; }
-function shkIsNew(it){ const t=shkAddedAt(it); return t!=null && (Date.now()-t) <= SHK_NEW_DAYS*86400000; }
-// 🆕NEW表示のオン/オフ（localStorage記憶・既定ON）。トグルしてもチェック選択は消さない。
-let shkShowNew = (function(){ try{ return localStorage.getItem('shk_show_new')!=='0'; }catch(e){ return true; } })();
-function toggleShkNew(el){
-  shkShowNew = !!el.checked;
-  try{ localStorage.setItem('shk_show_new', shkShowNew?'1':'0'); }catch(e){}
-  const list=document.getElementById('shkList'); if(list) list.classList.toggle('shk-hidenew', !shkShowNew);
+// 🆕NEWは自動付与しない。各品目の右側「NEW」チェックで任意に付ける。
+function onShkNewToggle(el){
+  const k=el.dataset.key;
+  const mark=document.querySelector('.shk-newmark[data-key="'+k+'"]');
+  if(mark) mark.style.display = el.checked ? '' : 'none';
   renderShukkaText();
 }
 // 送信文の手動編集モード。trueの間はrenderShukkaTextで自動上書きしない（手直しを保持）。
@@ -1334,10 +1328,8 @@ function showShukkaModal(){
   const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
   const body=document.getElementById('shukkaModalBody');
   if(!custs.length){ body.innerHTML='<div style="padding:20px;color:#888">対象の品目がありません（楽天・ヤフー・ネットは除外）</div>'; document.getElementById('shukkaModal').classList.add('show'); return; }
-  let html='<style>#shkList.shk-hidenew .shk-new{display:none}</style>';
-  html+='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択。滝川・ひかり・ナイス沼津は自社配送が多いため既定OFF）。取引先ごと・完了/未完了を表示。</div>';
-  html+=`<div style="padding:0 16px 4px"><label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none"><input type="checkbox" id="shkNewToggle" ${shkShowNew?'checked':''} onchange="toggleShkNew(this)">🆕NEW表示</label></div>`;
-  html+='<div id="shkList" class="'+(shkShowNew?'':'shk-hidenew')+'" style="max-height:42vh;overflow:auto;padding:0 16px">';
+  let html='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択。滝川・ひかり・ナイス沼津は自社配送が多いため既定OFF）。右の「NEW」を入れた品目だけ🆕が付きます。</div>';
+  html+='<div id="shkList" style="max-height:42vh;overflow:auto;padding:0 16px">';
   custs.forEach(c=>{
     const offDefault=shkDefaultOff(c); // 自社配送が多い取引先は既定OFF（表示はする）
     const note=offDefault?' <span style="font-weight:600;color:#e65100;font-size:11px">自社配送が多い・既定OFF</span>':'';
@@ -1346,10 +1338,15 @@ function showShukkaModal(){
       const done=shkDone(it); const k=itemKey(it); const bun=shkBun(it);
       const sub=`${HINMEI_NAME[it.hinmei]||it.hinmei||'?'} ${it.grade||''} ${it.thickness||''}×${it.width||''}×${it.length||''}`;
       const badge=done?'<span style="color:#2e7d32;font-weight:700;font-size:11px">完了</span>':'<span style="color:#e65100;font-weight:700;font-size:11px">未完了</span>';
-      html+=`<label style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee;cursor:pointer">
-        <input type="checkbox" class="shk-cb" data-key="${k}" ${offDefault?'':'checked'} onchange="renderShukkaText()">
-        <span style="flex:1">${shkIsNew(it)?'<span class="shk-new">🆕 </span>':''}<b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
-      </label>`;
+      html+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee">
+        <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
+          <input type="checkbox" class="shk-cb" data-key="${k}" ${offDefault?'':'checked'} onchange="renderShukkaText()">
+          <span style="flex:1"><span class="shk-newmark" data-key="${k}" style="display:none">🆕 </span><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
+        </label>
+        <label style="display:flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#e53935;cursor:pointer;user-select:none;white-space:nowrap">
+          <input type="checkbox" class="shk-new-cb" data-key="${k}" onchange="onShkNewToggle(this)">NEW
+        </label>
+      </div>`;
     });
   });
   html+='</div>';
@@ -1364,6 +1361,7 @@ function showShukkaModal(){
 function renderShukkaText(){
   if(shkManual) return; // 手動編集中は自動上書きしない
   const items=[...document.querySelectorAll('.shk-cb:checked')].map(cb=>allItems.find(it=>itemKey(it)===cb.dataset.key)).filter(Boolean);
+  const newKeys=new Set([...document.querySelectorAll('.shk-new-cb:checked')].map(cb=>cb.dataset.key));
   const d=new Date(); const wd=['日','月','火','水','木','金','土'][d.getDay()]; const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'（'+wd+'）';
   const g=shkGroups(items);
   const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
@@ -1372,7 +1370,7 @@ function renderShukkaText(){
     const lines=g[c].map(it=>{
       const dn=shkDone(it); dn?done++:und++;
       const bun=shkBun(it);
-      return `${(shkShowNew&&shkIsNew(it))?'🆕 ':''}${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
+      return `${newKeys.has(itemKey(it))?'🆕 ':''}${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
     });
     blocks.push('■ '+c+'\n'+lines.join('\n'));
   });
