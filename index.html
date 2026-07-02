@@ -233,6 +233,7 @@
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
   .tosou-on { background: #e1bee7 !important; }
+  .grade-b { background: #d1c4e9 !important; }
   .width-alert { background: #ffd54f !important; }
 
   /* Row drag */
@@ -361,6 +362,14 @@ function loadData() {
     allItems = Object.values(data).map(it => {
       it._uid = it._uid || Object.keys(data).find(k => data[k] === it);
       return it;
+    });
+
+    // B等級は全て加工在庫: 加在が未チェックなら自動チェック
+    allItems.forEach(it => {
+      if (String(it.grade || '').includes('B') && it.zaiko !== '1') {
+        it.zaiko = '1';
+        saveItem(it);
+      }
     });
 
     // Apply row order
@@ -512,6 +521,7 @@ function buildRow(it, sz, cols) {
     if (isZaiko && (col === 'planned' || col === 'actual')) classes.push('zaiko-on');
     if (isRyoutan && col === 'length') classes.push('ryoutan-on');
     if (isTosou && col === 'planned') classes.push('tosou-on');
+    if (col === 'grade' && String(getVal(it,'grade')).includes('B')) classes.push('grade-b');
     if (col === 'width' && getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
     const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
     return `<td${clsAttr}>${r[col]}</td>`;
@@ -1052,14 +1062,20 @@ document.addEventListener('copy', e => {
 // ===== Event handlers =====
 function onCellEdit(el) { saveField(el.dataset.key, el.dataset.field, el.textContent.trim()); }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
+// B等級は全て加工在庫のため、等級にBが付いたら加在を自動チェック
+function autoZaikoForB(key, field, val) {
+  if (field === 'grade' && String(val).includes('B')) saveField(key, 'zaiko', '1');
+}
 function onGenSelChange(el) {
   if (el.value === '__other__') {
     const v = prompt('値を入力してください');
     if (v !== null && v.trim()) {
       saveField(el.dataset.key, el.dataset.field, v.trim());
+      autoZaikoForB(el.dataset.key, el.dataset.field, v.trim());
     }
   } else {
     saveField(el.dataset.key, el.dataset.field, el.value);
+    autoZaikoForB(el.dataset.key, el.dataset.field, el.value);
     if (el.dataset.field === 'length') {
       if (el.value === '1820') saveField(el.dataset.key, 'qty', '10');
       else if (el.value === '3000') saveField(el.dataset.key, 'qty', '10');
