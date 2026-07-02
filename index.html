@@ -182,6 +182,11 @@
     background: none; border: 1px solid #4caf50; color: #4caf50; border-radius: 4px;
     padding: 2px 8px; font-size: 12px; cursor: pointer;
   }
+  .btn-ship {
+    background: none; border: 1px solid #607d8b; color: #607d8b; border-radius: 4px;
+    padding: 2px 8px; font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+  .btn-ship:hover { background: #eceff1; }
   .btn-restore:hover { background: #e8f5e9; }
   .archive-toggle {
     background: none; border: 1px solid #bbb; color: #888; border-radius: 6px;
@@ -627,7 +632,7 @@ function render() {
     html += `<th></th></tr></thead><tbody>`;
     kanryoVisible.forEach(it => {
       const k = itemKey(it);
-      html += buildRow(it, 12, kanryoCols).replace('</tr>', `<td><button class="btn-del" onclick="onArchive('${k}')">削除</button></td></tr>`);
+      html += buildRow(it, 12, kanryoCols).replace('</tr>', `<td><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
     });
     html += '</tbody></table></div>';
   } else {
@@ -942,7 +947,7 @@ function getTd(el) {
   if (!el) return null;
   const td = el.closest('td');
   if (!td) return null;
-  if (td.querySelector('.btn-del, .btn-restore')) return null;
+  if (td.querySelector('.btn-del, .btn-restore, .btn-ship')) return null;
   if (!td.closest('.tbl-kessoku, .tbl-seizou, .tbl-kanryo')) return null;
   return td;
 }
@@ -971,7 +976,7 @@ function selectRange(anchorTd, targetTd) {
     if (!row) continue;
     for (let c = c1; c <= c2; c++) {
       const td = row.children[c];
-      if (td && !td.querySelector('.btn-del, .btn-restore')) td.classList.add('cell-selected');
+      if (td && !td.querySelector('.btn-del, .btn-restore, .btn-ship')) td.classList.add('cell-selected');
     }
   }
 }
@@ -979,7 +984,7 @@ function selectRange(anchorTd, targetTd) {
 function selectEntireRow(tr) {
   clearCellSel();
   Array.from(tr.children).forEach(td => {
-    if (!td.classList.contains('drag-handle') && !td.querySelector('.btn-del, .btn-restore')) {
+    if (!td.classList.contains('drag-handle') && !td.querySelector('.btn-del, .btn-restore, .btn-ship')) {
       td.classList.add('cell-selected');
     }
   });
