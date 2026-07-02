@@ -248,6 +248,14 @@
   }
   .drag-handle:hover { color: #666; }
   tr.row-dragging { opacity: .3; background: #e3f2fd !important; }
+  tr.row-dragging td { transition: none; }
+  /* iPhone風の浮いたドラッグゴースト */
+  .drag-ghost {
+    position: fixed; z-index: 4000; pointer-events: none;
+    border-collapse: collapse; table-layout: fixed; background: #fff;
+    box-shadow: 0 10px 28px rgba(0,0,0,.35), 0 2px 8px rgba(0,0,0,.2);
+    transform: scale(1.015); border-radius: 10px; overflow: hidden; opacity: .97;
+  }
   tr.row-drag-over td { box-shadow: inset 0 -3px 0 #1a73e8; }
   tr.row-selected td { background: #bbdefb !important; }
   td.cell-selected { background: #bbdefb !important; box-shadow: inset 0 0 0 1px #1a73e8; }
@@ -322,7 +330,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
 const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2%',jun:'3.5%',order:'3.5%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'5%',width:'5%',length:'5.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',remark:'15%'};
+const COL_WIDTHS = {dblcheck:'2%',jun:'3.5%',order:'3.5%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'3.5%',width:'3.5%',length:'4.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',remark:'19%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -607,7 +615,7 @@ function render() {
       const delBtn = isLastEmpty ? `<button class="btn-del" onclick="onDeleteRow('${k}')">削除</button>` : '';
       const row = buildRow(it, 14, cols);
       const ordCls = String(getVal(it,'order')) !== '0' ? ' ord-not0' : '';
-      html += `<tr draggable="true" data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
+      html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
     });
     html += '</tbody></table></div>';
   } else {
@@ -834,93 +842,88 @@ function initDrag() {
 
 // ===== Row drag & drop =====
 
+// iPhoneの並び替え風: つかむと行が浮いて指/カーソルに追従し、他の行がリアルタイムによける
 let dragRowKey = null;
 let dragTr = null;
+let ghostTbl = null;
+let dragOffY = 0;
+let dragActive = false;
+let dragStartY = 0;
 function initRowDrag() {
   const tbody = document.querySelector('#tbl-seizou tbody');
   if (!tbody) return;
 
   document.querySelectorAll('#tbl-seizou .drag-handle').forEach(handle => {
-    // === Mouse drag ===
-    handle.draggable = true;
-    handle.addEventListener('dragstart', e => {
+    handle.draggable = false;
+
+    handle.addEventListener('pointerdown', e => {
+      e.preventDefault();
       dragTr = handle.closest('tr');
       dragRowKey = dragTr.dataset.rowkey;
-      dragTr.classList.add('row-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
+      dragStartY = e.clientY;
+      dragActive = false;
+      try { handle.setPointerCapture(e.pointerId); } catch (err) {}
     });
 
-    // === Touch drag ===
-    handle.addEventListener('touchstart', e => {
-      e.preventDefault();
-      dragTr = handle.closest('tr');
-      dragRowKey = dragTr.dataset.rowkey;
-      dragTr.classList.add('row-dragging');
-    }, { passive: false });
-
-    handle.addEventListener('touchmove', e => {
+    handle.addEventListener('pointermove', e => {
       if (!dragTr) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      // clear previous highlights
-      document.querySelectorAll('.row-drag-over').forEach(r => r.classList.remove('row-drag-over'));
-      if (el) {
-        const overTr = el.closest('tr[data-rowkey]');
-        if (overTr && overTr !== dragTr) overTr.classList.add('row-drag-over');
+      // 少し動かしてからドラッグ開始（タップでの行選択と区別）
+      if (!dragActive) {
+        if (Math.abs(e.clientY - dragStartY) < 5) return;
+        dragActive = true;
+        const rect = dragTr.getBoundingClientRect();
+        dragOffY = e.clientY - rect.top;
+        const clone = dragTr.cloneNode(true);
+        Array.from(dragTr.children).forEach((td, i) => {
+          clone.children[i].style.width = td.getBoundingClientRect().width + 'px';
+        });
+        ghostTbl = document.createElement('table');
+        ghostTbl.className = 'tbl-seizou drag-ghost';
+        ghostTbl.style.left = rect.left + 'px';
+        ghostTbl.style.top = rect.top + 'px';
+        ghostTbl.style.width = rect.width + 'px';
+        const tb = document.createElement('tbody');
+        tb.appendChild(clone);
+        ghostTbl.appendChild(tb);
+        document.body.appendChild(ghostTbl);
+        dragTr.classList.add('row-dragging');
       }
-    }, { passive: false });
+      e.preventDefault();
+      ghostTbl.style.top = (e.clientY - dragOffY) + 'px';
+      // 重なった行の上半分なら上へ・下半分なら下へ、その場でDOMを入れ替える
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const overTr = el && el.closest('tr[data-rowkey]');
+      if (overTr && overTr !== dragTr && overTr.parentNode === dragTr.parentNode) {
+        const r2 = overTr.getBoundingClientRect();
+        const before = e.clientY < r2.top + r2.height / 2;
+        overTr.parentNode.insertBefore(dragTr, before ? overTr : overTr.nextSibling);
+      }
+    });
 
-    handle.addEventListener('touchend', e => {
+    const finishDrag = () => {
       if (!dragTr) return;
-      const touch = e.changedTouches[0];
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      const targetTr = el ? el.closest('tr[data-rowkey]') : null;
-
-      document.querySelectorAll('.row-drag-over').forEach(r => r.classList.remove('row-drag-over'));
+      if (ghostTbl) { ghostTbl.remove(); ghostTbl = null; }
       dragTr.classList.remove('row-dragging');
-
-      if (targetTr && targetTr.dataset.rowkey !== dragRowKey) {
+      if (dragActive) {
+        // DOM上の最終位置に合わせて allItems を並べ替えて保存
+        const rows = Array.from(dragTr.parentNode.querySelectorAll('tr[data-rowkey]'));
+        const pos = rows.indexOf(dragTr);
         const fromIdx = allItems.findIndex(it => itemKey(it) === dragRowKey);
-        const toIdx = allItems.findIndex(it => itemKey(it) === targetTr.dataset.rowkey);
-        if (fromIdx !== -1 && toIdx !== -1) {
+        if (fromIdx !== -1) {
           const [moved] = allItems.splice(fromIdx, 1);
+          let toIdx = fromIdx;
+          if (pos < rows.length - 1) toIdx = allItems.findIndex(it => itemKey(it) === rows[pos + 1].dataset.rowkey);
+          else if (pos > 0) toIdx = allItems.findIndex(it => itemKey(it) === rows[pos - 1].dataset.rowkey) + 1;
+          if (toIdx < 0) toIdx = fromIdx;
           allItems.splice(toIdx, 0, moved);
           saveRowOrder(allItems.map(it => itemKey(it)));
           render();
         }
       }
-      dragTr = null;
-      dragRowKey = null;
-    });
-  });
-
-  // Mouse: row events
-  document.querySelectorAll('#tbl-seizou tbody tr[data-rowkey]').forEach(tr => {
-    tr.draggable = false;
-    tr.addEventListener('dragend', () => {
-      tr.classList.remove('row-dragging');
-      document.querySelectorAll('.row-drag-over').forEach(el => el.classList.remove('row-drag-over'));
-    });
-    tr.addEventListener('dragover', e => { if (dragRowKey) { e.preventDefault(); tr.classList.add('row-drag-over'); } });
-    tr.addEventListener('dragleave', () => { tr.classList.remove('row-drag-over'); });
-    tr.addEventListener('drop', e => {
-      e.preventDefault();
-      tr.classList.remove('row-drag-over');
-      const targetKey = tr.dataset.rowkey;
-      if (dragRowKey && dragRowKey !== targetKey) {
-        const fromIdx = allItems.findIndex(it => itemKey(it) === dragRowKey);
-        const toIdx = allItems.findIndex(it => itemKey(it) === targetKey);
-        if (fromIdx !== -1 && toIdx !== -1) {
-          const [moved] = allItems.splice(fromIdx, 1);
-          allItems.splice(toIdx, 0, moved);
-          saveRowOrder(allItems.map(it => itemKey(it)));
-          render();
-        }
-      }
-      dragRowKey = null; dragTr = null;
-    });
+      dragTr = null; dragRowKey = null; dragActive = false;
+    };
+    handle.addEventListener('pointerup', finishDrag);
+    handle.addEventListener('pointercancel', finishDrag);
   });
 }
 
