@@ -1356,6 +1356,13 @@ function shkGroups(items){
   Object.values(g).forEach(arr=>arr.sort((a,b)=>{ const da=shkDone(a),db=shkDone(b); if(da!==db)return da?-1:1; return (shkNum(a.length)||0)-(shkNum(b.length)||0); }));
   return g;
 }
+// 取引先ごとの固定注記：出荷依頼テキストの当該ブロック最終行に毎回付ける。
+// 不要になったらここから消す。判定は空白・括弧除去の部分一致。
+function shkCustNote(c){
+  const x=String(c||'').replace(/[\s　()（）]/g,'');
+  if(x.includes('ニッチ')) return '※8月1日以降着希望';
+  return '';
+}
 // 自社配送が多い取引先：出荷依頼モーダルでデフォルト・チェックOFF（表示はする）。
 // 表記ゆれに備え空白・括弧を除去して部分一致で判定。名称が違えば下の配列を直す。
 function shkDefaultOff(c){
@@ -1381,7 +1388,8 @@ function showShukkaModal(){
   custs.forEach(c=>{
     const offDefault=shkDefaultOff(c); // 自社配送が多い取引先は既定OFF（表示はする）
     const note=offDefault?' <span style="font-weight:600;color:#e65100;font-size:11px">自社配送が多い・既定OFF</span>':'';
-    html+=`<div style="font-weight:800;color:#1a73e8;margin:12px 0 2px;border-bottom:2px solid #1a73e8;padding-bottom:2px">${e(c)}${note}</div>`;
+    const cnote=shkCustNote(c)?' <span style="font-weight:600;color:#e53935;font-size:11px">'+e(shkCustNote(c))+'</span>':'';
+    html+=`<div style="font-weight:800;color:#1a73e8;margin:12px 0 2px;border-bottom:2px solid #1a73e8;padding-bottom:2px">${e(c)}${note}${cnote}</div>`;
     g[c].forEach(it=>{
       const done=shkDone(it); const k=itemKey(it); const bun=shkBun(it);
       const sub=`${HINMEI_NAME[it.hinmei]||it.hinmei||'?'} ${it.grade||''} ${it.thickness||''}×${it.width||''}×${it.length||''}`;
@@ -1420,6 +1428,7 @@ function renderShukkaText(){
       const bun=shkBun(it);
       return `${newKeys.has(itemKey(it))?'🆕 ':''}${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
     });
+    const note=shkCustNote(c); if(note) lines.push(note); // 取引先ごとの固定注記（ニッチ=8/1以降着希望 等）
     blocks.push('■ '+c+'\n'+lines.join('\n'));
   });
   let txt=date+'\n\n'+(blocks.length?blocks.join('\n\n'):'(品目未選択)');
