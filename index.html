@@ -1321,7 +1321,11 @@ function buildNouhin(custAbbrev){
 function shkNum(v){ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; }
 function shkLenM(l){ const n=parseFloat(String(l==null?'':l).replace(/[^0-9.]/g,'')); if(isNaN(n)) return String(l||''); return (Math.round(n/10)/100)+'m'; }
 function shkDone(it){ const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9; }
-function shkBun(it){ const b=shkNum(it.actual); return b!=null?b:shkNum(it.planned); }
+// 束数: 製造完了=実際／製造中=予定（実際は製造完了まで増えていくため確定値でない）
+function shkBun(it){
+  if(shkDone(it)){ const a=shkNum(it.actual); return a!=null?a:shkNum(it.planned); }
+  const p=shkNum(it.planned); return p!=null?p:shkNum(it.actual);
+}
 function shkSkip(c){ return /^(ヤフ|楽天|ネット)/.test((c||'').trim()); }
 function shkNew(it){ return !it.shk_sent; }              // まだ送信していない＝新規
 // 🆕NEWは自動付与しない。各品目の右側「NEW」チェックで任意に付ける。
