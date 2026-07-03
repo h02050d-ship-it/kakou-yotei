@@ -339,7 +339,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
 const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2%',jun:'3.5%',order:'3.5%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'3.5%',width:'3.5%',length:'4.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',carrier:'4%',remark:'17%'};
+const COL_WIDTHS = {dblcheck:'2%',jun:'3%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'25%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -387,11 +387,12 @@ function loadData() {
     });
 
     // B等級は全て加工在庫: 加在が未チェックなら自動チェック
+    // 旧表記「B無節特上」は「B無特上」へ自動移行
     allItems.forEach(it => {
-      if (String(it.grade || '').includes('B') && it.zaiko !== '1') {
-        it.zaiko = '1';
-        saveItem(it);
-      }
+      let dirty = false;
+      if (it.grade === 'B無節特上') { it.grade = 'B無特上'; dirty = true; }
+      if (String(it.grade || '').includes('B') && it.zaiko !== '1') { it.zaiko = '1'; dirty = true; }
+      if (dirty) saveItem(it);
     });
 
     // Apply row order
@@ -433,7 +434,7 @@ function loadData() {
 function getColOrder() { return colOrder; }
 
 // ===== Cell renderers =====
-const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無節特上'];
+const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無特上'];
 const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#2e7d32','無節':'#1565c0','無節特上':'#6a1b9a','生節':'#795548'};
 // 長さ→入数の選択肢（先頭がデフォルト）。該当する長さでは他の選択肢を出さない（＋その他）。
 const QTY_BY_LENGTH = {'910':['20','40'],'1820':['10'],'2000':['8'],'3000':['10'],'4000':['8'],'300':['2','10']};
