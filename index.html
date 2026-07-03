@@ -337,9 +337,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','remark'];
-const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2%',jun:'3.5%',order:'3.5%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'3.5%',width:'3.5%',length:'4.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',remark:'19%'};
+const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
+const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
+const COL_WIDTHS = {dblcheck:'2%',jun:'3.5%',order:'3.5%',customer:'7%',hinmei:'3%',grade:'7%',thickness:'3.5%',width:'3.5%',length:'4.5%',qty:'4%',planned:'5%',actual:'5%',seal:'2.5%',danball:'2.5%',ryoutan:'2.5%',tosou:'2.5%',zaiko:'2.5%',carrier:'4%',remark:'17%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -356,7 +356,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -417,7 +417,17 @@ function loadData() {
   // Listen for col order changes
   db.ref('settings/colOrder').on('value', snap => {
     const c = snap.val();
-    if (c && c.length) colOrder = c;
+    if (c && c.length) {
+      colOrder = c.slice();
+      // 後から増えた列（配送など）が保存済みの並びに無ければ既定位置に差し込む
+      DEFAULT_COLS.forEach(col => {
+        if (!colOrder.includes(col)) {
+          const after = DEFAULT_COLS[DEFAULT_COLS.indexOf(col) - 1];
+          const i = colOrder.indexOf(after);
+          colOrder.splice(i === -1 ? colOrder.length : i + 1, 0, col);
+        }
+      });
+    }
   });
 }
 function getColOrder() { return colOrder; }
@@ -531,6 +541,7 @@ function cellRenderers(it, sz) {
     ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
     tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
+    carrier: genSel(it,'carrier',['-','西濃','佐川'],sz,''),
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -692,6 +703,7 @@ function render() {
         <td>${getVal(it,'ryoutan')==='1'?'有':''}</td>
         <td>${getVal(it,'tosou')==='1'?'有':''}</td>
         <td>${getVal(it,'zaiko')==='1'?'有':''}</td>
+        <td>${e2(getVal(it,'carrier'))||''}</td>
         <td>${e2(getVal(it,'remark'))||''}</td>
         <td><button class="btn-restore" onclick="onRestore('${k}')">戻す</button></td>
       </tr>`;
