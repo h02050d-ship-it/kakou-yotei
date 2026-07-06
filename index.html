@@ -551,7 +551,7 @@ function cellRenderers(it, sz) {
     ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
     tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
-    carrier: genSel(it,'carrier',['-','西濃','佐川'],sz,''),
+    carrier: genSel(it,'carrier',['-','内藤','西濃','佐川'],sz,''),
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -1343,9 +1343,8 @@ function showNouhinModal(){
 function closeNouhinModal(){ document.getElementById('nouhinModal').classList.remove('show'); }
 function buildNouhin(custAbbrev){
   const num=v=>{ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; };
-  const items = kanryoItems()
-    .filter(it=> (it.customer||'').trim()===custAbbrev)
-    .map(it=>{
+  const rows = kanryoItems().filter(it=> (it.customer||'').trim()===custAbbrev);
+  const items = rows.map(it=>{
       const qty = num(it.actual); const pln = num(it.planned);
       return {
         name: HINMEI_NAME[it.hinmei]||it.hinmei||'',
@@ -1355,6 +1354,12 @@ function buildNouhin(custAbbrev){
       };
     });
   const data = { mode:'納品書', customer: fullName(custAbbrev), taxrate:10, items };
+  // 配送列の入力があれば納品書の配送業者へ（略称→納品書側の正式名）
+  const CARRIER_FULL = {'内藤':'内藤運輸','西濃':'西濃運輸','佐川':'佐川急便'};
+  const carRaw = rows.map(it=>String(it.carrier||'').trim()).find(v=>v) || '';
+  if (carRaw) data.carrier = CARRIER_FULL[carRaw] || carRaw;
+  // Firebaseキーも渡す（納品書の確定でこの分を出荷完了化できるように）
+  data.keys = rows.map(it=> itemKey(it).replace(/[.#$/\[\]]/g,'_'));
   const url = NOUHIN_URL + '#data=' + encodeURIComponent(JSON.stringify(data));
   window.open(url, '_blank');
   closeNouhinModal();
