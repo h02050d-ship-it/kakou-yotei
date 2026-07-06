@@ -388,10 +388,19 @@ function loadData() {
 
     // B等級は全て加工在庫: 加在が未チェックなら自動チェック
     // 旧表記「B無節特上」は「B無特上」へ自動移行
+    // ネット/楽天/ヤフの備考に入った佐川/西濃は「配送」列へ自動移行（備考からは除去）
     allItems.forEach(it => {
       let dirty = false;
       if (it.grade === 'B無節特上') { it.grade = 'B無特上'; dirty = true; }
       if (String(it.grade || '').includes('B') && it.zaiko !== '1') { it.zaiko = '1'; dirty = true; }
+      if (/ネット|楽天|ヤフ/.test(String(it.customer || ''))) {
+        const m = String(it.remark || '').match(/西濃|佐川/);
+        if (m) {
+          if (!it.carrier) it.carrier = m[0];
+          it.remark = String(it.remark).replace(/(西濃|佐川)\s*/g, '').trim();
+          dirty = true;
+        }
+      }
       if (dirty) saveItem(it);
     });
 
@@ -1102,23 +1111,21 @@ document.addEventListener('copy', e => {
 // ===== Event handlers =====
 function onCellEdit(el) {
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
-  if (el.dataset.field === 'customer') autoCarrierRemark(el.dataset.key);
+  if (el.dataset.field === 'customer') autoCarrier(el.dataset.key);
 }
-// 長さ設定時: 入数をその長さのデフォルト（先頭）に自動切替＋配送業者の備考自動入力
+// 長さ設定時: 入数をその長さのデフォルト（先頭）に自動切替＋配送業者の自動選択
 function onLengthSet(key, val) {
   const qs = QTY_BY_LENGTH[String(val)];
   if (qs) saveField(key, 'qty', qs[0]);
-  autoCarrierRemark(key);
+  autoCarrier(key);
 }
-// ネット・楽天・ヤフを含む取引先: 910=佐川、1820/3000/4000=西濃 を備考に自動入力
-function autoCarrierRemark(key) {
+// ネット・楽天・ヤフを含む取引先: 910=佐川、1820/3000/4000=西濃 を「配送」列に自動選択（備考には入れない）
+function autoCarrier(key) {
   const it = allItems.find(i => itemKey(i) === key);
   if (!it || !/ネット|楽天|ヤフ/.test(String(getVal(it,'customer')))) return;
   const len = String(getVal(it,'length'));
   const carrier = len === '910' ? '佐川' : (['1820','3000','4000'].includes(len) ? '西濃' : '');
-  if (!carrier) return;
-  const rest = String(getVal(it,'remark')).replace(/佐川|西濃/g, '').trim();
-  saveField(key, 'remark', rest ? carrier + ' ' + rest : carrier);
+  if (carrier && getVal(it,'carrier') !== carrier) saveField(key, 'carrier', carrier);
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 // B等級は全て加工在庫のため、等級にBが付いたら加在を自動チェック
@@ -1388,7 +1395,7 @@ function toggleShkEdit(btn){
 }
 function shkStatusLabel(it){ return shkDone(it)?'完了':'未完了'; }
 function shkCandidates(){
-  return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true; });
+  return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; if((it.carrier||'')==='西濃') return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true; });
 }
 // 取引先ごとにグループ化。各群内は完了→未完了、長さ昇順。
 function shkGroups(items){
