@@ -64,13 +64,20 @@
   .kanryo-spacer { flex: 1; min-height: 20px; }
   .kanryo-section { flex-shrink: 0; padding-bottom: 24px; }
 
-  /* やり方変更のお知らせ（結束予定と製造中の間のスリムな帯） */
-  .notice-banner {
-    margin: 4px 12px 2px; padding: 5px 36px 5px 12px; position: relative;
-    background: #fff8e1; border: 1px solid #f9a825; border-left: 6px solid #f57f17;
-    border-radius: 8px; font-size: 13px; line-height: 1.6; color: #4e342e;
+  /* やり方変更のお知らせ（製造中ヘッダー内・時間段数ボタンの右） */
+  .notice-inline {
+    flex: 1; min-width: 0; margin-left: 10px; position: relative;
+    background: #fff8e1; border: 1px solid #f9a825; border-left: 5px solid #f57f17;
+    border-radius: 6px; padding: 2px 32px 2px 8px; font-size: 12px; line-height: 1.5; color: #4e342e;
   }
-  .notice-banner b { color: #bf360c; }
+  .notice-inline b { color: #bf360c; }
+  /* 納期セル（カレンダー入力） */
+  .due-wrap { position: relative; display: block; width: 100%; min-height: 1.3em; cursor: pointer; }
+  .due-disp { font-weight: 800; color: #00695c; white-space: nowrap; }
+  .due-input {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    opacity: 0; border: none; padding: 0; margin: 0; cursor: pointer; -webkit-appearance: none;
+  }
   .notice-close {
     position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
     background: none; border: 1px solid #ddd; border-radius: 5px;
@@ -352,9 +359,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
-const COL_LABELS = {ptime:'時間',stack:'段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
-const COL_WIDTHS = {ptime:'3%',stack:'3%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'22%'};
+const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
+const COL_LABELS = {ptime:'時間',stack:'段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'納期',remark:'備考'};
+const COL_WIDTHS = {ptime:'3%',stack:'3%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'4%',remark:'20%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -372,7 +379,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -575,6 +582,7 @@ function cellRenderers(it, sz) {
     tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
+    due: `<div class="due-wrap"><span class="due-disp">${fmtDue(getVal(it,'due'))||'-'}</span><input type="date" class="due-input" value="${getVal(it,'due')}" data-key="${k}" data-field="due" onchange="onDueChange(this)" onclick="try{this.showPicker()}catch(e){}"></div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -657,14 +665,13 @@ function render() {
     html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で1〜3を選ぶと表示されます</div>';
   }
 
-  // やり方変更のお知らせ（結束予定と製造中の間・各端末で×を押すまで表示）
+  // やり方変更のお知らせ（時間・段数ボタンの右・各端末で×を押すまで表示）
   const NOTICE_ID = 'notice_20260703_seizoujun';
-  if (!localStorage.getItem(NOTICE_ID)) {
-    html += `<div class="notice-banner"><b>⚠️ やり方変更（7/3〜）</b>：結束順の列は廃止・番号は<b>製造順だけ</b>（<b>1〜3の行が結束予定</b>に出ます）／配送業者は備考ではなく<b>「配送」列</b>で選択（ネット・楽天・ヤフは自動）<button class="notice-close" onclick="dismissNotice('${NOTICE_ID}')" title="この端末では今後表示しない">×</button></div>`;
-  }
+  const noticeHtml = localStorage.getItem(NOTICE_ID) ? '' :
+    `<span class="notice-inline"><b>⚠️ やり方変更（7/3〜）</b>：結束順は廃止・番号は<b>製造順だけ</b>（1〜3が結束予定）／配送は<b>「配送」列</b>で選択（ネット・楽天・ヤフは自動）<button class="notice-close" onclick="dismissNotice('${NOTICE_ID}')" title="この端末では今後表示しない">×</button></span>`;
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button>${noticeHtml}</div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
@@ -738,6 +745,7 @@ function render() {
         <td>${getVal(it,'tosou')==='1'?'有':''}</td>
         <td>${getVal(it,'zaiko')==='1'?'有':''}</td>
         <td>${e2(getVal(it,'carrier'))||''}</td>
+        <td>${e2(fmtDue(getVal(it,'due')))||''}</td>
         <td>${e2(getVal(it,'remark'))||''}</td>
         <td><button class="btn-restore" onclick="onRestore('${k}')">戻す</button></td>
       </tr>`;
@@ -1171,6 +1179,15 @@ function autoCarrier(key) {
   if (carrier && getVal(it,'carrier') !== carrier) saveField(key, 'carrier', carrier);
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
+// 納期: ISO(yyyy-mm-dd)で保存し「7/7㈫」形式で表示
+const DUE_WD = ['㈰','㈪','㈫','㈬','㈭','㈮','㈯'];
+function fmtDue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return iso;
+  return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
+}
+function onDueChange(el) { saveField(el.dataset.key, 'due', el.value); }
 // B等級は全て加工在庫のため、等級にBが付いたら加在を自動チェック
 function autoZaikoForB(key, field, val) {
   if (field === 'grade' && String(val).includes('B')) saveField(key, 'zaiko', '1');
