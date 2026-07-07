@@ -88,6 +88,7 @@
   .due-clear:hover { color: #d32f2f; border-color: #d32f2f; }
   .sec-head {
     padding: 8px 16px 4px; display: flex; align-items: center; gap: 8px;
+    position: relative;
   }
   .sec-head h2 {
     font-size: 15px; font-weight: 700;
@@ -363,8 +364,8 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
-const COL_LABELS = {ptime:'時間',stack:'段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'納期',remark:'備考'};
-const COL_WIDTHS = {ptime:'3%',stack:'3%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'4%',remark:'20%'};
+const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'納期',remark:'備考'};
+const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'4%',remark:'19%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -669,7 +670,7 @@ function render() {
   }
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社引渡しは<b>納品日</b></span></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 加工時間・スタッカー段数を隠す' : '⏱ 加工時間・スタッカー段数'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社引渡しは<b>納品日</b></span></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
@@ -758,7 +759,25 @@ function render() {
   initCellNav();
   autoFitCells();
   updateProcEstimate();
+  positionDueNote();
 }
+
+// 納期の注意書きを、製造中テーブルの「納期」列の真上に中央揃えで配置
+// （納期列が見つからない場合はヘッダー右端のまま）
+function positionDueNote() {
+  const note = document.querySelector('.due-note');
+  if (!note) return;
+  const th = document.querySelector('#tbl-seizou th[data-col="due"]');
+  const head = note.closest('.sec-head');
+  if (!th || !head) { note.style.position = ''; note.style.left = ''; return; }
+  const hr = head.getBoundingClientRect();
+  const tr = th.getBoundingClientRect();
+  note.style.position = 'absolute';
+  let left = tr.left + tr.width / 2 - note.offsetWidth / 2 - hr.left;
+  left = Math.max(4, Math.min(left, hr.width - note.offsetWidth - 4));
+  note.style.left = Math.round(left) + 'px';
+}
+window.addEventListener('resize', positionDueNote);
 
 // ===== 加工予定時間の計算 =====
 // 基準: 4m・8枚入・1束 = 4分、これに1割増し(×1.1)
