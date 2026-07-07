@@ -337,9 +337,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const DEFAULT_COLS = ['dblcheck','jun','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
-const COL_LABELS = {dblcheck:'確認',jun:'結束順','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2%',jun:'3%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'25%'};
+const DEFAULT_COLS = ['dblcheck','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
+const COL_LABELS = {dblcheck:'確認','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
+const COL_WIDTHS = {dblcheck:'2%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'25%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -428,7 +428,7 @@ function loadData() {
   db.ref('settings/colOrder').on('value', snap => {
     const c = snap.val();
     if (c && c.length) {
-      colOrder = c.slice();
+      colOrder = c.slice().filter(col => DEFAULT_COLS.includes(col));   // 廃止列（旧・結束順）は除去
       // 後から増えた列（配送など）が保存済みの並びに無ければ既定位置に差し込む
       DEFAULT_COLS.forEach(col => {
         if (!colOrder.includes(col)) {
@@ -517,7 +517,6 @@ function cellRenderers(it, sz) {
   const is12=cur==='F'&&String(thick)==='12';
   const bgMap={F:is12?'#f9a825':'#d32f2f',P:'#1565c0',N:'#2e7d32',S:'#6a1b9a'};
   const bg=bgMap[cur]||'#999', tc=is12?'#333':'#fff';
-  const junCur=getVal(it,'kessoku_jun')||'';
   const ordCur=getVal(it,'order');
   const av=getVal(it,'actual');
 
@@ -535,7 +534,6 @@ function cellRenderers(it, sz) {
 
   return {
     dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
-    jun: `<select class="sel sel-jun" data-key="${k}" data-field="kessoku_jun" onchange="onJunChange(this)"><option value="" ${!junCur?'selected':''}>-</option>${[1,2,3,4,5,6].map(n=>`<option value="${n}" ${junCur===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     order: `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
     customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
     hinmei: `<select class="sel sel-hm" style="background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
@@ -585,7 +583,9 @@ function buildRow(it, sz, cols, opts) {
 function buildHead(cols, tableId) {
   return '<thead><tr>' + cols.map((c,i) => {
     const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : '';
-    return `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="${tableId}"${w}>${COL_LABELS[c]||c}</th>`;
+    // 結束予定では製造順の列名を「結束順」として表示（数値は製造順と共通）
+    const label = (tableId === 'kessoku' && c === 'order') ? '結束順' : (COL_LABELS[c]||c);
+    return `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="${tableId}"${w}>${label}</th>`;
   }).join('') + '</tr></thead>';
 }
 
@@ -597,8 +597,7 @@ function render() {
 
   const items = allItems.map(it => {
     const ord = parseInt(getVal(it,'order'));
-    const jun = getVal(it,'kessoku_jun') || '';
-    return { ...it, _ord: isNaN(ord)?99:ord, _jun: jun };
+    return { ...it, _ord: isNaN(ord)?99:ord };
   });
 
   const kanryo = items.filter(i => i._ord >= 9).sort((a, b) => {
@@ -613,30 +612,21 @@ function render() {
     return (b.completed_at || 0) - (a.completed_at || 0);
   });
   const underNine = items.filter(i => i._ord < 9);
-  const kessoku = underNine.filter(i => i._jun).sort((a,b)=>{
-    const ja = parseInt(a._jun), jb = parseInt(b._jun);
-    if (ja !== jb) return ja - jb;
-    return a._ord - b._ord;
-  });
-  const seizouchu = [...underNine].sort((a,b)=>{
-    // 結束順ありを先に、次に製造順昇順
-    const aJun = a._jun ? parseInt(a._jun) : 9999;
-    const bJun = b._jun ? parseInt(b._jun) : 9999;
-    if (aJun !== bJun) return aJun - bJun;
-    return a._ord - b._ord;
-  });
+  // 結束予定 = 製造順1〜3の行（数値は製造順と共通、4以上・0は表示しない）
+  const kessoku = underNine.filter(i => i._ord >= 1 && i._ord <= 3).sort((a,b)=> a._ord - b._ord);
+  const seizouchu = [...underNine].sort((a,b)=> a._ord - b._ord);
 
   let html = '<div class="main-content">';
 
   // 結束順
-  const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck' && c !== 'order');
+  const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck');
   html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
   if (kessoku.length) {
     html += `<div class="table-scroll"><table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
     kessoku.forEach(it => { html += buildRow(it, 16, kessokuCols); });
     html += '</tbody></table></div>';
   } else {
-    html += '<div class="sec-empty">結束予定なし — 製造中の「結束順」で番号を選ぶと表示されます</div>';
+    html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で1〜3を選ぶと表示されます</div>';
   }
 
   // 製造中
@@ -1179,7 +1169,6 @@ function onOrdChange(el) {
     saveField(key, 'order', val);
   }
 }
-function onJunChange(el) { saveField(el.dataset.key, 'kessoku_jun', el.value); }
 function onHmChange(el) {
   saveField(el.dataset.key, 'hinmei', el.value);
   if (el.value === 'P') saveField(el.dataset.key, 'thickness', '12');
