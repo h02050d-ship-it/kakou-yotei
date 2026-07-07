@@ -535,7 +535,12 @@ function cellRenderers(it, sz) {
 
   return {
     dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
-    order: `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${[0,1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`,
+    order: (()=>{
+      // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
+      const ordOpts = ['1','2','3','4','5','6','7','8','9'];
+      if (String(ordCur) !== '' && !ordOpts.includes(String(ordCur))) ordOpts.unshift(String(ordCur));
+      return `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${ordOpts.map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`;
+    })(),
     customer: `<td class="cust" ${ea('customer')}>${e(getVal(it,'customer'))}</td>`,
     hinmei: `<select class="sel sel-hm" style="background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
     grade: genSel(it,'grade',gradeOpts,sz,'',gradeColors),
@@ -613,8 +618,8 @@ function render() {
     return (b.completed_at || 0) - (a.completed_at || 0);
   });
   const underNine = items.filter(i => i._ord < 9);
-  // 結束予定 = 製造順0〜3の行（数値は製造順と共通、4以上は表示しない）
-  const kessoku = underNine.filter(i => i._ord >= 0 && i._ord <= 3).sort((a,b)=> a._ord - b._ord);
+  // 結束予定 = 製造順1〜3の行（数値は製造順と共通、4以上は表示しない）
+  const kessoku = underNine.filter(i => i._ord >= 1 && i._ord <= 3).sort((a,b)=> a._ord - b._ord);
   const seizouchu = [...underNine].sort((a,b)=> a._ord - b._ord);
 
   let html = '<div class="main-content">';
@@ -627,7 +632,7 @@ function render() {
     kessoku.forEach(it => { html += buildRow(it, 16, kessokuCols); });
     html += '</tbody></table></div>';
   } else {
-    html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で0〜3を選ぶと表示されます</div>';
+    html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で1〜3を選ぶと表示されます</div>';
   }
 
   // 製造中
