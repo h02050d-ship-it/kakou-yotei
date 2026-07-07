@@ -670,7 +670,7 @@ function render() {
   }
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 加工時間・スタッカー段数を隠す' : '⏱ 加工時間・スタッカー段数'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社引渡しは<b>納品日</b></span></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 加工時間・スタッカー段数を隠す' : '⏱ 加工時間・スタッカー段数'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社・引取は<b>引渡し日</b></span></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
