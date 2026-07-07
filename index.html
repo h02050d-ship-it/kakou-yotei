@@ -67,6 +67,7 @@
   /* 納期セル＋自前カレンダー（複数選択対応） */
   .due-wrap { display: block; width: 100%; min-height: 1.3em; cursor: pointer; }
   .due-disp { font-weight: 800; color: #00695c; white-space: nowrap; }
+  .due-disp.multi { white-space: normal; font-size: 11px; line-height: 1.2; font-weight: 700; }
   .due-pop {
     position: fixed; z-index: 3000; background: #fff; width: 250px;
     border: 1px solid #9e9e9e; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.28); padding: 8px;
@@ -582,7 +583,7 @@ function cellRenderers(it, sz) {
     tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
-    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)"><span class="due-disp">${fmtDue(getVal(it,'due'))||'-'}</span></div>`,
+    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -1183,6 +1184,18 @@ function fmtDue(v) {
     if (isNaN(d)) return s;
     return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
   }).join(' or ');
+}
+// 納期セル表示: 1日=横1行、複数日=上下2行(小さめ)で「7/7㈫ / or 7/9㈭」→備考へはみ出さない
+function dueDispHtml(v) {
+  const arr = String(v || '').split(',').filter(Boolean);
+  if (!arr.length) return '<span class="due-disp">-</span>';
+  const parts = arr.map((s, i) => {
+    const d = new Date(s + 'T00:00:00');
+    const t = isNaN(d) ? s : ((d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()]);
+    return (i > 0 ? 'or ' : '') + t;
+  });
+  if (parts.length === 1) return '<span class="due-disp">' + parts[0] + '</span>';
+  return '<span class="due-disp multi">' + parts.join('<br>') + '</span>';
 }
 
 // ===== 納期の自前カレンダー（複数選択チェックで2日までor選択） =====
