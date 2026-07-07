@@ -270,6 +270,8 @@
 
   .cb-check { width: 20px; height: 20px; cursor: pointer; accent-color: #1a73e8; }
   .rc-val { font-size: clamp(13px, 1.05vw, 20px); color: #546e7a; font-weight: 700; white-space: nowrap; }
+  .stack-cell { flex-direction: column; line-height: 1.15; gap: 0; }
+  .rc-sub { font-size: 10.5px; color: #e65100; font-weight: 800; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
   .tosou-on { background: #e1bee7 !important; }
@@ -383,7 +385,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -562,9 +564,18 @@ function cellRenderers(it, sz) {
   }
 
   const rc = rowCalc(it);
+  // 段数: クリックで「在庫から何束引くか」を選ぶプルダウン（0〜束数）
+  let stackHtml = '<span class="rc-val">-</span>';
+  if (rc) {
+    const smOpts = [];
+    for (let n = 0; n <= rc.bundles; n++) smOpts.push(String(n));
+    cdropData[k + ' stock_minus'] = { opts: smOpts, colorMap: null };
+    const sub = rc.stockMinus > 0 ? `<span class="rc-sub">在庫-${rc.stockMinus}束</span>` : '';
+    stackHtml = `<div class="sel cdrop rc-val stack-cell" tabindex="0" data-key="${k}" data-field="stock_minus" onclick="openCDrop(this,event)" title="クリックで在庫から引く束数を選択">${rc.dan}段${sub}</div>`;
+  }
   return {
     ptime: `<span class="rc-val">${rc ? fmtRowMin(rc.min) : '-'}</span>`,
-    stack: `<span class="rc-val">${rc ? rc.dan + '段' : '-'}</span>`,
+    stack: stackHtml,
     order: (()=>{
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
       const ordOpts = ['1','2','3','4','5','6','7','8','9'];
@@ -670,7 +681,7 @@ function render() {
   }
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 加工時間・スタッカー段数を隠す' : '⏱ 加工時間・スタッカー段数'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社・引取は<b>引渡し日</b></span></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 予想加工時間・スタッカー段数を隠す' : '⏱ 予想加工時間・スタッカー段数を表示'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社・引取は<b>引渡し日</b></span></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
@@ -785,7 +796,8 @@ window.addEventListener('resize', positionDueNote);
 // 束数 = 予定。ただし加在チェックなしで実際に数字があれば 予定-実際（残り分）で計算。
 // 加在チェック済み・製造完了は除外。15mm=フローリング / 12mm=羽目板
 // 行ごとの計算: 予想加工時間（全体計算と同じ式）とスタッカー必要段数（9枚/段）
-// 束数 = 予定（実際に数字があれば残り分）。枚数 = 入数 × 束数、段数 = 枚数 ÷ 9（小数1桁切り捨て）
+// 束数 = 予定（実際に数字があれば残り分）。段数 = 入数×(束数−在庫引き束数)÷9（小数1桁切り上げ）
+// 在庫引き束数(stock_minus) = 在庫で既にある分。段数セルのプルダウンで選ぶ。
 function rowCalc(it) {
   const len = parseFloat(getVal(it, 'length')) || 0;
   const qty = parseFloat(getVal(it, 'qty')) || 0;
@@ -795,8 +807,9 @@ function rowCalc(it) {
   const bundles = !isNaN(actualNum) ? Math.max(0, planned - actualNum) : planned;
   if (bundles <= 0) return null;
   const min = 4 * (len / 4000) * (qty / 8) * bundles * 1.1;
-  const dan = Math.floor(qty * bundles / 9 * 10) / 10;
-  return { min, dan };
+  const sm = Math.min(Math.max(parseInt(getVal(it, 'stock_minus')) || 0, 0), bundles);
+  const dan = Math.ceil(qty * (bundles - sm) / 9 * 10) / 10;
+  return { min, dan, bundles, stockMinus: sm };
 }
 function fmtRowMin(min) {
   const m = Math.round(min);
@@ -849,13 +862,14 @@ function updateProcEstimate() {
 
 function autoFitCells() {
   document.querySelectorAll('.tbl-kessoku td, .tbl-seizou td, .tbl-kanryo td').forEach(td => {
-    const sel = td.querySelector('select, .cdrop');
-    const el = sel || td;
-    if (!sel && td.getAttribute('contenteditable') !== 'true' && !td.classList.contains('rmk') && !td.classList.contains('cust')) return;
+    const due = td.querySelector('.due-disp');
+    const sel = due ? null : td.querySelector('select, .cdrop');
+    const el = due || sel || td;
+    if (!due && !sel && td.getAttribute('contenteditable') !== 'true' && !td.classList.contains('rmk') && !td.classList.contains('cust')) return;
     el.style.fontSize = '';
     const maxFs = parseFloat(getComputedStyle(el).fontSize);
     let fs = maxFs;
-    const target = sel ? el : td;
+    const target = sel ? el : td;   // 納期(.due-disp)はtd幅に収まるまでspanの文字を縮める
     if (td.classList.contains('rmk')) {
       // 備考: 1行に収まるギリギリ最大のフォントサイズを探す
       // white-space:nowrapで横幅オーバーをチェック
