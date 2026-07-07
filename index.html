@@ -64,6 +64,20 @@
   .kanryo-spacer { flex: 1; min-height: 20px; }
   .kanryo-section { flex-shrink: 0; padding-bottom: 24px; }
 
+  /* やり方変更のお知らせバナー */
+  .notice-banner {
+    margin: 10px 12px 4px; padding: 12px 44px 12px 16px; position: relative;
+    background: #fff8e1; border: 2px solid #f57f17; border-left: 10px solid #f57f17;
+    border-radius: 10px; font-size: 16px; line-height: 1.8; color: #4e342e;
+  }
+  .notice-banner .nb-title { font-size: 18px; font-weight: 900; color: #bf360c; display: block; margin-bottom: 2px; }
+  .notice-banner b { color: #bf360c; }
+  .notice-close {
+    position: absolute; right: 6px; top: 6px; background: none; border: 1px solid #ccc;
+    border-radius: 6px; font-size: 18px; line-height: 1; padding: 4px 9px; color: #888; cursor: pointer;
+  }
+  .notice-close:hover { background: #ffe0b2; color: #bf360c; }
+
   .sec-head {
     padding: 8px 16px 4px; display: flex; align-items: center; gap: 8px;
   }
@@ -337,9 +351,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const DEFAULT_COLS = ['dblcheck','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
-const COL_LABELS = {dblcheck:'確認','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
-const COL_WIDTHS = {dblcheck:'2%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'25%'};
+const DEFAULT_COLS = ['order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
+const COL_LABELS = {'order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
+const COL_WIDTHS = {order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'25%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -534,7 +548,6 @@ function cellRenderers(it, sz) {
   }
 
   return {
-    dblcheck: `<input type="checkbox" class="cb-check" ${getVal(it,'dblcheck')==='1'?'checked':''} data-key="${k}" data-field="dblcheck" onchange="onZaikoChange(this)">`,
     order: (()=>{
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
       const ordOpts = ['1','2','3','4','5','6','7','8','9'];
@@ -624,8 +637,20 @@ function render() {
 
   let html = '<div class="main-content">';
 
+  // やり方変更のお知らせ（各端末で×を押すまで表示）
+  const NOTICE_ID = 'notice_20260703_seizoujun';
+  if (!localStorage.getItem(NOTICE_ID)) {
+    html += `<div class="notice-banner">
+      <span class="nb-title">⚠️ やり方が変わりました（2026/7/3〜）</span>
+      ・「結束順」の列は廃止 → 番号は<b>製造順だけ</b>になりました<br>
+      ・<b>製造順 1〜3 の行が「結束予定」</b>に表示されます（1→2→3の順で結束。0は廃止）<br>
+      ・配送業者は備考ではなく<b>「配送」列</b>で選んでください（ネット・楽天・ヤフは自動で入ります）
+      <button class="notice-close" onclick="dismissNotice('${NOTICE_ID}')" title="この端末では今後表示しない">×</button>
+    </div>`;
+  }
+
   // 結束順
-  const kessokuCols = cols.filter(c => c !== 'zaiko' && c !== 'dblcheck');
+  const kessokuCols = cols.filter(c => c !== 'zaiko');
   html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
   if (kessoku.length) {
     html += `<div class="table-scroll"><table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
@@ -1194,6 +1219,7 @@ function onRestore(key) {
   if (it) { it.archived = ''; it.archived_at = ''; saveItem(it); }
 }
 function toggleArchive() { showArchive = !showArchive; render(); }
+function dismissNotice(id) { localStorage.setItem(id, '1'); render(); }
 
 function onDeleteRow(key) {
   db.ref('items/' + key.replace(/[.#$/\[\]]/g,'_')).remove();
