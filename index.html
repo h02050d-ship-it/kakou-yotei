@@ -104,6 +104,8 @@
   .sec-kessoku h2::before { background: #c62828; }
   .sec-seizou h2 { color: #e65100; }
   .sec-seizou h2::before { background: #e65100; }
+  .due-note { margin-left: auto; font-size: 11.5px; font-weight: 700; color: #00695c; white-space: nowrap; }
+  .due-note b { color: #c62828; }
   .sec-kanryo h2 { color: #9e9e9e; }
   .sec-kanryo h2::before { background: #9e9e9e; }
 
@@ -667,7 +669,7 @@ function render() {
   }
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社引渡しは<b>納品日</b></span></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
