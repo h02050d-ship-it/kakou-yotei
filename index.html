@@ -613,8 +613,8 @@ function render() {
     return (b.completed_at || 0) - (a.completed_at || 0);
   });
   const underNine = items.filter(i => i._ord < 9);
-  // 結束予定 = 製造順1〜3の行（数値は製造順と共通、4以上・0は表示しない）
-  const kessoku = underNine.filter(i => i._ord >= 1 && i._ord <= 3).sort((a,b)=> a._ord - b._ord);
+  // 結束予定 = 製造順0〜3の行（数値は製造順と共通、4以上は表示しない）
+  const kessoku = underNine.filter(i => i._ord >= 0 && i._ord <= 3).sort((a,b)=> a._ord - b._ord);
   const seizouchu = [...underNine].sort((a,b)=> a._ord - b._ord);
 
   let html = '<div class="main-content">';
@@ -627,7 +627,7 @@ function render() {
     kessoku.forEach(it => { html += buildRow(it, 16, kessokuCols); });
     html += '</tbody></table></div>';
   } else {
-    html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で1〜3を選ぶと表示されます</div>';
+    html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で0〜3を選ぶと表示されます</div>';
   }
 
   // 製造中
