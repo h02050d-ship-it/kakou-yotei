@@ -64,27 +64,27 @@
   .kanryo-spacer { flex: 1; min-height: 20px; }
   .kanryo-section { flex-shrink: 0; padding-bottom: 24px; }
 
-  /* やり方変更のお知らせ（製造中ヘッダー内・時間段数ボタンの右） */
-  .notice-inline {
-    flex: 1; min-width: 0; margin-left: 10px; position: relative;
-    background: #fff8e1; border: 1px solid #f9a825; border-left: 5px solid #f57f17;
-    border-radius: 6px; padding: 2px 32px 2px 8px; font-size: 12px; line-height: 1.5; color: #4e342e;
-  }
-  .notice-inline b { color: #bf360c; }
-  /* 納期セル（カレンダー入力） */
-  .due-wrap { position: relative; display: block; width: 100%; min-height: 1.3em; cursor: pointer; }
+  /* 納期セル＋自前カレンダー（複数選択対応） */
+  .due-wrap { display: block; width: 100%; min-height: 1.3em; cursor: pointer; }
   .due-disp { font-weight: 800; color: #00695c; white-space: nowrap; }
-  .due-input {
-    position: absolute; inset: 0; width: 100%; height: 100%;
-    opacity: 0; border: none; padding: 0; margin: 0; cursor: pointer; -webkit-appearance: none;
+  .due-pop {
+    position: fixed; z-index: 3000; background: #fff; width: 250px;
+    border: 1px solid #9e9e9e; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.28); padding: 8px;
   }
-  .notice-close {
-    position: absolute; right: 5px; top: 50%; transform: translateY(-50%);
-    background: none; border: 1px solid #ddd; border-radius: 5px;
-    font-size: 14px; line-height: 1; padding: 3px 7px; color: #999; cursor: pointer;
-  }
-  .notice-close:hover { background: #ffe0b2; color: #bf360c; }
-
+  .due-nav { display: flex; justify-content: space-between; align-items: center; font-weight: 800; margin-bottom: 4px; font-size: 15px; }
+  .due-nav button { background: #f0f0f0; border: none; border-radius: 6px; padding: 5px 12px; cursor: pointer; font-size: 14px; }
+  .due-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  .due-wd { font-size: 11px; color: #888; font-weight: 700; padding: 2px 0; }
+  .due-day { background: none; border: none; border-radius: 6px; padding: 6px 0; font-size: 15px; font-weight: 700; cursor: pointer; color: #222; }
+  .due-day:hover { background: #e3f2fd; }
+  .due-day.due-today { box-shadow: inset 0 0 0 1.5px #1a73e8; }
+  .due-day.due-on { background: #1a73e8; color: #fff !important; }
+  .due-sun { color: #d32f2f; } .due-sat { color: #1565c0; }
+  .due-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; font-weight: 700; color: #444; }
+  .due-foot label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .due-foot input[type="checkbox"] { width: 16px; height: 16px; }
+  .due-clear { background: none; border: 1px solid #ccc; border-radius: 6px; padding: 4px 10px; cursor: pointer; color: #888; font-size: 12px; }
+  .due-clear:hover { color: #d32f2f; border-color: #d32f2f; }
   .sec-head {
     padding: 8px 16px 4px; display: flex; align-items: center; gap: 8px;
   }
@@ -582,7 +582,7 @@ function cellRenderers(it, sz) {
     tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
-    due: `<div class="due-wrap"><span class="due-disp">${fmtDue(getVal(it,'due'))||'-'}</span><input type="date" class="due-input" value="${getVal(it,'due')}" data-key="${k}" data-field="due" onchange="onDueChange(this)" onclick="try{this.showPicker()}catch(e){}"></div>`,
+    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)"><span class="due-disp">${fmtDue(getVal(it,'due'))||'-'}</span></div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -665,13 +665,8 @@ function render() {
     html += '<div class="sec-empty">結束予定なし — 製造中の「製造順」で1〜3を選ぶと表示されます</div>';
   }
 
-  // やり方変更のお知らせ（時間・段数ボタンの右・各端末で×を押すまで表示）
-  const NOTICE_ID = 'notice_20260703_seizoujun';
-  const noticeHtml = localStorage.getItem(NOTICE_ID) ? '' :
-    `<span class="notice-inline"><b>⚠️ やり方変更（7/3〜）</b>：結束順は廃止・番号は<b>製造順だけ</b>（1〜3が結束予定）／配送は<b>「配送」列</b>で選択（ネット・楽天・ヤフは自動）<button class="notice-close" onclick="dismissNotice('${NOTICE_ID}')" title="この端末では今後表示しない">×</button></span>`;
-
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button>${noticeHtml}</div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()">${showCalcCols ? '⏱ 時間・段数を隠す' : '⏱ 時間・段数'}</button></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
@@ -1179,15 +1174,85 @@ function autoCarrier(key) {
   if (carrier && getVal(it,'carrier') !== carrier) saveField(key, 'carrier', carrier);
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
-// 納期: ISO(yyyy-mm-dd)で保存し「7/7㈫」形式で表示
+// 納期: ISO(yyyy-mm-dd、複数はカンマ区切り)で保存し「7/7㈫ or 7/9㈭」形式で表示
 const DUE_WD = ['㈰','㈪','㈫','㈬','㈭','㈮','㈯'];
-function fmtDue(iso) {
-  if (!iso) return '';
-  const d = new Date(iso + 'T00:00:00');
-  if (isNaN(d)) return iso;
-  return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
+function fmtDue(v) {
+  if (!v) return '';
+  return String(v).split(',').filter(Boolean).map(s => {
+    const d = new Date(s + 'T00:00:00');
+    if (isNaN(d)) return s;
+    return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
+  }).join(' or ');
 }
-function onDueChange(el) { saveField(el.dataset.key, 'due', el.value); }
+
+// ===== 納期の自前カレンダー（複数選択チェックで2日までor選択） =====
+let duePop = null, dueKey = null, dueSel = [], dueMulti = false, dueYm = null;
+function closeDuePop() { if (duePop) { duePop.remove(); duePop = null; dueKey = null; } }
+function openDuePicker(el, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  closeCDrop();
+  const wasKey = dueKey;
+  closeDuePop();
+  if (wasKey === el.dataset.key) return;   // 同じセルを再タップ → 閉じる
+  dueKey = el.dataset.key;
+  const it = allItems.find(i => itemKey(i) === dueKey);
+  dueSel = String((it && it.due) || '').split(',').filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
+  dueMulti = dueSel.length > 1;
+  const base = dueSel[0] ? new Date(dueSel[0] + 'T00:00:00') : new Date();
+  dueYm = { y: base.getFullYear(), m: base.getMonth() };
+  duePop = document.createElement('div');
+  duePop.className = 'due-pop';
+  duePop.addEventListener('click', e => e.stopPropagation());
+  document.body.appendChild(duePop);
+  renderDuePop();
+  const r = el.getBoundingClientRect();
+  duePop.style.left = Math.max(4, Math.min(window.innerWidth - 258, Math.round(r.left))) + 'px';
+  const top = r.bottom + 4;
+  duePop.style.top = (top + 310 > window.innerHeight ? Math.max(4, r.top - 314) : top) + 'px';
+}
+function renderDuePop() {
+  if (!duePop) return;
+  const y = dueYm.y, m = dueYm.m;
+  const startWd = new Date(y, m, 1).getDay();
+  const days = new Date(y, m + 1, 0).getDate();
+  const t = new Date();
+  const todayIso = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+  let h = `<div class="due-nav"><button onclick="dueNav(-1)">◀</button><span>${y}年${m+1}月</span><button onclick="dueNav(1)">▶</button></div>`;
+  h += '<div class="due-grid">' + ['日','月','火','水','木','金','土'].map((w,i)=>`<span class="due-wd${i===0?' due-sun':(i===6?' due-sat':'')}">${w}</span>`).join('');
+  for (let i = 0; i < startWd; i++) h += '<span></span>';
+  for (let d = 1; d <= days; d++) {
+    const iso = y + '-' + String(m+1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const wd = (startWd + d - 1) % 7;
+    const cls = ['due-day'];
+    if (dueSel.includes(iso)) cls.push('due-on');
+    if (iso === todayIso) cls.push('due-today');
+    if (wd === 0) cls.push('due-sun'); if (wd === 6) cls.push('due-sat');
+    h += `<button class="${cls.join(' ')}" onclick="duePick('${iso}')">${d}</button>`;
+  }
+  h += '</div>';
+  h += `<div class="due-foot"><label><input type="checkbox" ${dueMulti?'checked':''} onchange="dueMultiToggle(this)">複数選択（2日・or表示）</label><button class="due-clear" onclick="dueClear()">クリア</button></div>`;
+  duePop.innerHTML = h;
+}
+function dueNav(d) { dueYm.m += d; if (dueYm.m < 0) { dueYm.m = 11; dueYm.y--; } if (dueYm.m > 11) { dueYm.m = 0; dueYm.y++; } renderDuePop(); }
+function dueSave() { saveField(dueKey, 'due', dueSel.join(',')); }
+function dueMultiToggle(cb) { dueMulti = cb.checked; if (!dueMulti && dueSel.length > 1) { dueSel = [dueSel[0]]; dueSave(); } renderDuePop(); }
+function duePick(iso) {
+  if (dueMulti) {
+    if (dueSel.includes(iso)) dueSel = dueSel.filter(s => s !== iso);
+    else { dueSel.push(iso); if (dueSel.length > 2) dueSel = dueSel.slice(-2); }
+    dueSel.sort();
+    dueSave(); renderDuePop();
+    if (dueSel.length === 2) closeDuePop();
+  } else {
+    dueSel = [iso]; dueSave(); closeDuePop();
+  }
+}
+function dueClear() { dueSel = []; dueSave(); closeDuePop(); }
+document.addEventListener('click', () => closeDuePop());
+document.addEventListener('scroll', e => {
+  if (duePop && (e.target === duePop || duePop.contains(e.target))) return;
+  closeDuePop();
+}, true);
 // B等級は全て加工在庫のため、等級にBが付いたら加在を自動チェック
 function autoZaikoForB(key, field, val) {
   if (field === 'grade' && String(val).includes('B')) saveField(key, 'zaiko', '1');
@@ -1258,7 +1323,6 @@ function onRestore(key) {
   if (it) { it.archived = ''; it.archived_at = ''; saveItem(it); }
 }
 function toggleArchive() { showArchive = !showArchive; render(); }
-function dismissNotice(id) { localStorage.setItem(id, '1'); render(); }
 function toggleCalcCols() { showCalcCols = !showCalcCols; localStorage.setItem('show_calc_cols', showCalcCols ? '1' : ''); render(); }
 
 function onDeleteRow(key) {
