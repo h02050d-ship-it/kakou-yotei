@@ -258,6 +258,7 @@
   .modal .note { padding: 10px 20px; font-size: 13px; color: #d32f2f; font-weight: 600; }
 
   .cb-check { width: 20px; height: 20px; cursor: pointer; accent-color: #1a73e8; }
+  .rc-val { font-size: clamp(13px, 1.05vw, 20px); color: #546e7a; font-weight: 700; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
   .tosou-on { background: #e1bee7 !important; }
@@ -351,9 +352,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const DEFAULT_COLS = ['order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
-const COL_LABELS = {'order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
-const COL_WIDTHS = {order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'25%'};
+const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','remark'];
+const COL_LABELS = {ptime:'時間',stack:'段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',remark:'備考'};
+const COL_WIDTHS = {ptime:'3%',stack:'3%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',remark:'22%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -446,8 +447,9 @@ function loadData() {
       // 後から増えた列（配送など）が保存済みの並びに無ければ既定位置に差し込む
       DEFAULT_COLS.forEach(col => {
         if (!colOrder.includes(col)) {
-          const after = DEFAULT_COLS[DEFAULT_COLS.indexOf(col) - 1];
-          const i = colOrder.indexOf(after);
+          const di = DEFAULT_COLS.indexOf(col);
+          if (di === 0) { colOrder.unshift(col); return; }
+          const i = colOrder.indexOf(DEFAULT_COLS[di - 1]);
           colOrder.splice(i === -1 ? colOrder.length : i + 1, 0, col);
         }
       });
@@ -547,7 +549,10 @@ function cellRenderers(it, sz) {
     actOpts = actualOpts;
   }
 
+  const rc = rowCalc(it);
   return {
+    ptime: `<span class="rc-val">${rc ? fmtRowMin(rc.min) : '-'}</span>`,
+    stack: `<span class="rc-val">${rc ? rc.dan + '段' : '-'}</span>`,
     order: (()=>{
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
       const ordOpts = ['1','2','3','4','5','6','7','8','9'];
@@ -612,7 +617,8 @@ function render() {
   const main = document.getElementById('mainArea');
   const cols = getColOrder();
   // Filter: 製造完了 doesn't have jun column
-  const kanryoCols = cols.filter(c => c !== 'jun');
+  // 製造完了では時間・段数列は不要（残り束数0で常に「-」になるため）
+  const kanryoCols = cols.filter(c => c !== 'jun' && c !== 'ptime' && c !== 'stack');
 
   const items = allItems.map(it => {
     const ord = parseInt(getVal(it,'order'));
@@ -756,6 +762,25 @@ function render() {
 // 各行: 4 × (長さ/4000) × (入数/8) × 束数 × 1.1
 // 束数 = 予定。ただし加在チェックなしで実際に数字があれば 予定-実際（残り分）で計算。
 // 加在チェック済み・製造完了は除外。15mm=フローリング / 12mm=羽目板
+// 行ごとの計算: 予想加工時間（全体計算と同じ式）とスタッカー必要段数（9枚/段）
+// 束数 = 予定（実際に数字があれば残り分）。枚数 = 入数 × 束数、段数 = 枚数 ÷ 9（小数1桁切り捨て）
+function rowCalc(it) {
+  const len = parseFloat(getVal(it, 'length')) || 0;
+  const qty = parseFloat(getVal(it, 'qty')) || 0;
+  const planned = parseFloat(getVal(it, 'planned')) || 0;
+  if (!len || !qty || !planned) return null;
+  const actualNum = parseInt(getVal(it, 'actual'));
+  const bundles = !isNaN(actualNum) ? Math.max(0, planned - actualNum) : planned;
+  if (bundles <= 0) return null;
+  const min = 4 * (len / 4000) * (qty / 8) * bundles * 1.1;
+  const dan = Math.floor(qty * bundles / 9 * 10) / 10;
+  return { min, dan };
+}
+function fmtRowMin(min) {
+  const m = Math.round(min);
+  if (m < 60) return m + '分';
+  return (Math.round(min / 60 * 10) / 10) + 'h';
+}
 function calcProcTime() {
   let floor = 0, hame = 0;
   allItems.forEach(it => {
