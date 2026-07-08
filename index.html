@@ -178,6 +178,8 @@
   }
   .mark-toggle.mt-kiri.on { background: #d32f2f; border-color: #d32f2f; }
   .mark-toggle.mt-tosou.on { background: #6a1b9a; border-color: #6a1b9a; }
+  .mark-toggle.mt-seal.on { background: #2e7d32; border-color: #2e7d32; }
+  .mark-toggle.mt-danball.on { background: #ef6c00; border-color: #ef6c00; }
   .cb-check { width: 24px; height: 24px; cursor: pointer; accent-color: #1a73e8; }
   .sel {
     width: 100%; height: 100%; padding: 0 2px; margin: 0;
@@ -598,8 +600,8 @@ function cellRenderers(it, sz) {
     qty: genSel(it,'qty',qtyOptsFor(it),sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
     actual: genSel(it,'actual',actOpts,sz,'bnum'),
-    seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
-    danball: `<input type="checkbox" class="cb-seal" ${getVal(it,'danball')==='有'?'checked':''} data-key="${k}" data-field="danball" onchange="onSealChange(this)">`,
+    seal: `<div class="mark-toggle mt-seal ${getVal(it,'seal')==='有'?'on':''}" data-key="${k}" data-field="seal" onclick="onSealToggle(this)">${getVal(it,'seal')==='有'?'シ':''}</div>`,
+    danball: `<div class="mark-toggle mt-danball ${getVal(it,'danball')==='有'?'on':''}" data-key="${k}" data-field="danball" onclick="onSealToggle(this)">${getVal(it,'danball')==='有'?'段':''}</div>`,
     ryoutan: `<div class="mark-toggle mt-kiri ${getVal(it,'ryoutan')==='1'?'on':''}" data-key="${k}" data-field="ryoutan" onclick="onMarkToggle(this)">${getVal(it,'ryoutan')==='1'?'切':''}</div>`,
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
@@ -1217,6 +1219,11 @@ function autoCarrier(key) {
   if (carrier && getVal(it,'carrier') !== carrier) saveField(key, 'carrier', carrier);
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
+// シル「シ」・段ボ「段」のトグル表示。ON=有で表示、OFF=無で空
+function onSealToggle(el){
+  const on = el.classList.contains('on');
+  saveField(el.dataset.key, el.dataset.field, on ? '無' : '有');
+}
 // 納期: ISO(yyyy-mm-dd、複数はカンマ区切り)で保存し「7/7㈫ or 7/9㈭」形式で表示
 const DUE_WD = ['㈰','㈪','㈫','㈬','㈭','㈮','㈯'];
 function fmtDue(v) {
