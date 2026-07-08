@@ -31,6 +31,7 @@
     display: flex; align-items: baseline; gap: 6px; white-space: nowrap;
   }
   .proc-estimate .pe-total { background: rgba(255,255,255,.34); }
+  .proc-estimate .pe-days { background: rgba(255,255,255,.28); }
   .proc-estimate .pe-title { font-size: 14px; font-weight: 800; opacity: .95; margin-right: 4px; white-space: nowrap; }
   .proc-estimate .pe-help {
     width: 22px; height: 22px; flex-shrink: 0; border-radius: 50%;
@@ -866,6 +867,7 @@ function updateProcEstimate() {
     `<span class="pe-item"><span class="pe-label">フローリング(15mm)</span><span class="pe-val">${fmtMin(floor)}</span></span>` +
     `<span class="pe-item"><span class="pe-label">羽目板(12mm)</span><span class="pe-val">${fmtMin(hame)}</span></span>` +
     `<span class="pe-item pe-total"><span class="pe-label">合計</span><span class="pe-val">${fmtMin(total)}</span></span>` +
+    `<span class="pe-item pe-days"><span class="pe-label">1日5時間で</span><span class="pe-val">${(Math.ceil(total/300*10)/10)}日分</span></span>` +
     `<span class="pe-note">※加在チェック分は除外</span>`;
 }
 
