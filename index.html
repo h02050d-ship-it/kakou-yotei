@@ -181,6 +181,7 @@
   .mark-toggle.mt-tosou.on { background: #6a1b9a; border-color: #6a1b9a; }
   .mark-toggle.mt-seal.on { background: #2e7d32; border-color: #2e7d32; }
   .mark-toggle.mt-danball.on { background: #ef6c00; border-color: #ef6c00; }
+  .mark-toggle.mt-zaiko.on { background: #4caf50; border-color: #4caf50; }
   .cb-check { width: 24px; height: 24px; cursor: pointer; accent-color: #1a73e8; }
   .sel {
     width: 100%; height: 100%; padding: 0 2px; margin: 0;
@@ -605,7 +606,7 @@ function cellRenderers(it, sz) {
     danball: `<div class="mark-toggle mt-danball ${getVal(it,'danball')==='有'?'on':''}" data-key="${k}" data-field="danball" onclick="onSealToggle(this)">${getVal(it,'danball')==='有'?'段':''}</div>`,
     ryoutan: `<div class="mark-toggle mt-kiri ${getVal(it,'ryoutan')==='1'?'on':''}" data-key="${k}" data-field="ryoutan" onclick="onMarkToggle(this)">${getVal(it,'ryoutan')==='1'?'切':''}</div>`,
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
-    zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
+    zaiko: `<div class="mark-toggle mt-zaiko ${getVal(it,'zaiko')==='1'?'on':''}" data-key="${k}" data-field="zaiko" onclick="onMarkToggle(this)">${getVal(it,'zaiko')==='1'?'有':''}</div>`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
     due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
