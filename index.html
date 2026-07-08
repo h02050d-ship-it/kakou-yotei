@@ -171,6 +171,13 @@
   .sel-hm { width: 100%; height: 100%; padding: 0; border-radius: 0; font-weight: 700; font-size: inherit; color: #fff; border: none; cursor: pointer; -webkit-appearance: none; appearance: none; }
   .cb-zaiko { width: 24px; height: 24px; cursor: pointer; accent-color: #4caf50; }
   .cb-seal { width: 24px; height: 24px; cursor: pointer; accent-color: #d32f2f; }
+  .mark-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; margin: 0 auto; border: 1.5px solid #ccc; border-radius: 5px;
+    cursor: pointer; font-weight: 900; font-size: clamp(14px, 1.2vw, 20px); color: #fff; user-select: none;
+  }
+  .mark-toggle.mt-kiri.on { background: #d32f2f; border-color: #d32f2f; }
+  .mark-toggle.mt-tosou.on { background: #6a1b9a; border-color: #6a1b9a; }
   .cb-check { width: 24px; height: 24px; cursor: pointer; accent-color: #1a73e8; }
   .sel {
     width: 100%; height: 100%; padding: 0 2px; margin: 0;
@@ -593,8 +600,8 @@ function cellRenderers(it, sz) {
     actual: genSel(it,'actual',actOpts,sz,'bnum'),
     seal: `<input type="checkbox" class="cb-seal" ${getVal(it,'seal')==='有'?'checked':''} data-key="${k}" data-field="seal" onchange="onSealChange(this)">`,
     danball: `<input type="checkbox" class="cb-seal" ${getVal(it,'danball')==='有'?'checked':''} data-key="${k}" data-field="danball" onchange="onSealChange(this)">`,
-    ryoutan: `<input type="checkbox" class="cb-seal" ${getVal(it,'ryoutan')==='1'?'checked':''} data-key="${k}" data-field="ryoutan" onchange="onZaikoChange(this)">`,
-    tosou: `<input type="checkbox" class="cb-seal" ${getVal(it,'tosou')==='1'?'checked':''} data-key="${k}" data-field="tosou" onchange="onZaikoChange(this)">`,
+    ryoutan: `<div class="mark-toggle mt-kiri ${getVal(it,'ryoutan')==='1'?'on':''}" data-key="${k}" data-field="ryoutan" onclick="onMarkToggle(this)">${getVal(it,'ryoutan')==='1'?'切':''}</div>`,
+    tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
     zaiko: `<input type="checkbox" class="cb-zaiko" ${getVal(it,'zaiko')==='1'?'checked':''} data-key="${k}" data-field="zaiko" onchange="onZaikoChange(this)">`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
     due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}</div>`,
@@ -910,7 +917,7 @@ function initCellNav() {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         // 保存してからフォーカス移動（renderしない）
-        saveEdit(td.dataset.key, td.dataset.field, td.textContent.trim());
+        saveField(td.dataset.key, td.dataset.field, td.textContent.trim());
         moveDown(td);
       }
     });
@@ -1144,7 +1151,7 @@ document.addEventListener('click', e => {
       selExtending = false;
     } else {
       // Start new selection (if click on non-interactive cell)
-      if (!e.target.closest('input, select, button, .cdrop, [contenteditable="true"]')) {
+      if (!e.target.closest('input, select, button, .cdrop, .mark-toggle, [contenteditable="true"]')) {
         clearCellSel();
         td.classList.add('cell-selected');
         selAnchorTd = td;
@@ -1357,6 +1364,11 @@ function onHmChange(el) {
   if (el.value === 'P') saveField(el.dataset.key, 'thickness', '12');
 }
 function onZaikoChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'1':''); }
+// 両切「切」・塗装「塗」のトグル表示。ON=1で切/塗を表示、OFFで空
+function onMarkToggle(el){
+  const on = el.classList.contains('on');
+  saveField(el.dataset.key, el.dataset.field, on ? '' : '1');
+}
 
 function isArchived(key) {
   const it = allItems.find(i => itemKey(i) === key);
