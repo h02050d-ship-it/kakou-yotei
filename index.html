@@ -153,7 +153,8 @@
   .tbl-seizou .cb-check { width: 18px; height: 18px; }
   .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(16px, 1.45vw, 28px); color: #795548; border-right: none !important; font-weight: 700; }
   .tbl-seizou td:last-child, .tbl-seizou th:last-child { border-right: none !important; border-left: none !important; }
-  /* .tbl-seizou tr.ord-not0 { opacity: .45; } */
+  /* 製造順7・8はまだ先の予定なので薄く表示 */
+  .tbl-seizou tr.ord-faint { opacity: .4; }
 
   .tbl-kanryo thead th { background: #78909c; }
   .tbl-kanryo tbody tr { background: #fafafa; opacity: .45; }
@@ -703,7 +704,7 @@ function render() {
       const isLastEmpty = idx === seizouchu.length - 1 && (!cust || !cust.trim());
       const delBtn = isLastEmpty ? `<button class="btn-del" onclick="onDeleteRow('${k}')">削除</button>` : '';
       const row = buildRow(it, 14, cols);
-      const ordCls = String(getVal(it,'order')) !== '0' ? ' ord-not0' : '';
+      const ordCls = ['7','8'].includes(String(getVal(it,'order'))) ? ' ord-faint' : '';
       html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${delBtn}</td></tr>`;
     });
     html += '</tbody></table></div>';
