@@ -68,7 +68,12 @@
   /* 納期セル＋自前カレンダー（複数選択対応） */
   .due-wrap { display: block; width: 100%; min-height: 1.3em; cursor: pointer; }
   .due-disp { font-weight: 800; color: #00695c; white-space: nowrap; }
-  .due-disp.multi { white-space: normal; font-size: 11px; line-height: 1.2; font-weight: 700; }
+  .due-disp.multi {
+    display: inline-flex; flex-direction: column; align-items: center;
+    white-space: nowrap; font-size: 15px; line-height: 1.15; font-weight: 800;
+  }
+  .due-disp.multi .due-d { font-size: 1em; }
+  .due-disp.multi .due-or { font-size: .62em; font-weight: 700; color: #26a69a; opacity: .85; margin: 1px 0; }
   .due-pop {
     position: fixed; z-index: 3000; background: #fff; width: 250px;
     border: 1px solid #9e9e9e; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.28); padding: 8px;
@@ -397,7 +402,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
 const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'納期',remark:'備考'};
-const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'4%',remark:'19%'};
+const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'5%',remark:'18%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -1259,13 +1264,14 @@ function fmtDue(v) {
 function dueDispHtml(v) {
   const arr = String(v || '').split(',').filter(Boolean);
   if (!arr.length) return '<span class="due-disp">-</span>';
-  const parts = arr.map((s, i) => {
+  const parts = arr.map(s => {
     const d = new Date(s + 'T00:00:00');
-    const t = isNaN(d) ? s : ((d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()]);
-    return (i > 0 ? 'or ' : '') + t;
+    return isNaN(d) ? s : ((d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()]);
   });
   if (parts.length === 1) return '<span class="due-disp">' + parts[0] + '</span>';
-  return '<span class="due-disp multi">' + parts.join('<br>') + '</span>';
+  return '<span class="due-disp multi">' +
+    parts.map(p => '<span class="due-d">' + p + '</span>').join('<span class="due-or">or</span>') +
+    '</span>';
 }
 
 // ===== 納期の自前カレンダー（複数選択チェックで2日までor選択） =====
