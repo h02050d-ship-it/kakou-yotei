@@ -420,7 +420,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','ord_base','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -464,6 +464,14 @@ function loadData() {
           it.remark = String(it.remark).replace(/(西濃|佐川)\s*/g, '').trim();
           dirty = true;
         }
+      }
+      // 既に配送確認/支払確認中で注文内容が未記録なら、現状を注文内容として記録
+      const av0 = String(it.actual || '');
+      if ((av0 === '配送確認' || av0 === '支払確認') && !it.ord_base) {
+        const base = {};
+        ORD_SPEC.forEach(f => base[f] = String(it[f] == null ? '' : it[f]));
+        it.ord_base = JSON.stringify(base);
+        dirty = true;
       }
       if (dirty) saveItem(it);
     });
@@ -1226,19 +1234,46 @@ document.addEventListener('copy', e => {
 });
 
 // ===== Event handlers =====
-// 注文一元管理との齟齬防止ガード：配送確認/支払確認中の行を（状態以外で）変更しようとしたら確認
-function editGuard(key, field) {
+// ===== 注文一元管理との齟齬防止ガード =====
+// 配送確認/支払確認に入った瞬間に「注文内容」を各行へスナップショット(ord_base)し、
+// 以後その仕様を変えると「注文内容: 塗装 あり→なし」のように具体的な差分を警告する。
+const ORD_SPEC = ['hinmei','grade','thickness','width','length','qty','ryoutan','tosou','carrier'];
+const ORD_LABEL = {hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',ryoutan:'両端カット',tosou:'塗装',carrier:'配送'};
+function ordDisp(field, v) {
+  v = String(v == null ? '' : v);
+  if (field === 'ryoutan' || field === 'tosou') return v === '1' ? 'あり' : 'なし';
+  if (field === 'hinmei') return (typeof HINMEI_NAME !== 'undefined' && HINMEI_NAME[v]) || v || '-';
+  return v || '-';
+}
+function isConfirmState(it) {
+  const av = String(getVal(it, 'actual'));
+  return av === '配送確認' || av === '支払確認';
+}
+// 行が確認状態のとき、現在の仕様を注文内容の基準として記録
+function captureOrdBase(it) {
+  const base = {};
+  ORD_SPEC.forEach(f => base[f] = String(getVal(it, f)));
+  it.ord_base = JSON.stringify(base);
+  saveItem(it);
+}
+// 変更を許可してよいか。配送確認/支払確認中の行のみ確認する。newValを渡すと具体差分を出す。
+function editGuard(key, field, newVal) {
   if (field === 'actual' || field === 'order') return true;   // 状態・工程の修正は許可
   const it = allItems.find(i => itemKey(i) === key);
-  if (!it) return true;
-  const av = String(getVal(it,'actual'));
-  if (av === '配送確認' || av === '支払確認') {
-    return confirm(`⚠️ この行は「${av}」中です。\n注文一元管理の内容と食い違う変更になっていませんか？\n\nこのまま変更して大丈夫ですか？`);
+  if (!it || !isConfirmState(it)) return true;
+  const av = String(getVal(it, 'actual'));
+  let base = null; try { base = it.ord_base ? JSON.parse(it.ord_base) : null; } catch (e) {}
+  if (base && ORD_SPEC.includes(field) && newVal !== undefined) {
+    const oldV = String(base[field] == null ? '' : base[field]);
+    if (oldV === String(newVal)) return true;   // 実質変更なし
+    const ok = confirm(`⚠️ この行は「${av}」中です。\n\n注文内容とちがう変更です：\n　${ORD_LABEL[field]}　${ordDisp(field, oldV)} → ${ordDisp(field, newVal)}\n\n注文一元管理と食い違っていませんか？本当に変更しますか？`);
+    if (ok) { base[field] = String(newVal); it.ord_base = JSON.stringify(base); saveItem(it); }
+    return ok;
   }
-  return true;
+  return confirm(`⚠️ この行は「${av}」中です。\n注文一元管理の内容と食い違う変更になっていませんか？\n\nこのまま変更して大丈夫ですか？`);
 }
 function onCellEdit(el) {
-  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
+  if (!editGuard(el.dataset.key, el.dataset.field, el.textContent.trim())) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
   if (el.dataset.field === 'customer') autoCarrier(el.dataset.key);
 }
@@ -1259,8 +1294,8 @@ function autoCarrier(key) {
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 // シル「シ」・段ボ「段」のトグル表示。ON=有で表示、OFF=無で空
 function onSealToggle(el){
-  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
   const on = el.classList.contains('on');
+  if (!editGuard(el.dataset.key, el.dataset.field, on ? '無' : '有')) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, on ? '無' : '有');
 }
 // 納期: ISO(yyyy-mm-dd、複数はカンマ区切り)で保存し「7/7㈫ or 7/9㈭」形式で表示
@@ -1361,21 +1396,25 @@ function autoZaikoForB(key, field, val) {
   if (field === 'grade' && String(val).includes('B')) saveField(key, 'zaiko', '1');
 }
 function onGenSelChange(el) {
-  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
+  const key = el.dataset.key, field = el.dataset.field;
   if (el.value === '__other__') {
     const v = prompt('値を入力してください');
     if (v !== null && v.trim()) {
-      saveField(el.dataset.key, el.dataset.field, v.trim());
-      autoZaikoForB(el.dataset.key, el.dataset.field, v.trim());
-      if (el.dataset.field === 'length') onLengthSet(el.dataset.key, v.trim());
+      if (!editGuard(key, field, v.trim())) { render(); return; }
+      saveField(key, field, v.trim());
+      autoZaikoForB(key, field, v.trim());
+      if (field === 'length') onLengthSet(key, v.trim());
     }
   } else {
-    saveField(el.dataset.key, el.dataset.field, el.value);
-    autoZaikoForB(el.dataset.key, el.dataset.field, el.value);
-    if (el.dataset.field === 'length') onLengthSet(el.dataset.key, el.value);
+    if (!editGuard(key, field, el.value)) { render(); return; }
+    saveField(key, field, el.value);
+    autoZaikoForB(key, field, el.value);
+    if (field === 'length') onLengthSet(key, el.value);
     // 実際が予定と同数になったら製造順を9にして完了へ移動
-    if (el.dataset.field === 'actual') {
-      const it = allItems.find(i => itemKey(i) === el.dataset.key);
+    if (field === 'actual') {
+      const it = allItems.find(i => itemKey(i) === key);
+      // 配送確認/支払確認に入ったら注文内容をスナップショット（以後の齟齬を具体検知）
+      if (it && (el.value === '配送確認' || el.value === '支払確認') && !it.ord_base) captureOrdBase(it);
       const pNum = it ? parseInt(getVal(it,'planned')) : NaN;
       const aNum = parseInt(el.value);
       if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) completeItem(it);
@@ -1409,25 +1448,29 @@ function onOrdChange(el) {
   }
 }
 function onHmChange(el) {
-  if (!editGuard(el.dataset.key, 'hinmei')) { render(); return; }
+  if (!editGuard(el.dataset.key, 'hinmei', el.value)) { render(); return; }
   saveField(el.dataset.key, 'hinmei', el.value);
   if (el.value === 'P') saveField(el.dataset.key, 'thickness', '12');
 }
 function onZaikoChange(el) {
-  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
+  if (!editGuard(el.dataset.key, el.dataset.field, el.checked?'1':'')) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.checked?'1':'');
 }
 // 両切「切」・塗装「塗」のトグル表示。ON=1で切/塗を表示、OFFで空
 function onMarkToggle(el){
   const on = el.classList.contains('on');
-  const f = el.dataset.field;
-  // 塗装・両端カットの「あり」をオフに戻すときは注文との齟齬を確認
+  const f = el.dataset.field, key = el.dataset.key, newVal = on ? '' : '1';
+  // 塗装・両端カットの「あり」をオフに戻すときは専用の確認（どの行でも）
   if (on && (f === 'tosou' || f === 'ryoutan')) {
     const nm = f === 'tosou' ? '塗装' : '両端カット';
     if (!confirm(`⚠️ 「${nm}あり」をオフにします。\n注文一元管理では${nm}ありになっていませんか？\n\nオフにして大丈夫ですか？`)) { render(); return; }
+    // ここで確認済みなので二重確認しない（確認状態ならord_baseも更新）
+    const it = allItems.find(i => itemKey(i) === key);
+    if (it && it.ord_base) { try { const b = JSON.parse(it.ord_base); b[f] = newVal; it.ord_base = JSON.stringify(b); } catch(e){} }
+    saveField(key, f, newVal); return;
   }
-  if (!editGuard(el.dataset.key, f)) { render(); return; }
-  saveField(el.dataset.key, f, on ? '' : '1');
+  if (!editGuard(key, f, newVal)) { render(); return; }
+  saveField(key, f, newVal);
 }
 
 function isArchived(key) {
