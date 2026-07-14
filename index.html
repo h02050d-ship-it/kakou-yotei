@@ -1226,7 +1226,19 @@ document.addEventListener('copy', e => {
 });
 
 // ===== Event handlers =====
+// 注文一元管理との齟齬防止ガード：配送確認/支払確認中の行を（状態以外で）変更しようとしたら確認
+function editGuard(key, field) {
+  if (field === 'actual' || field === 'order') return true;   // 状態・工程の修正は許可
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return true;
+  const av = String(getVal(it,'actual'));
+  if (av === '配送確認' || av === '支払確認') {
+    return confirm(`⚠️ この行は「${av}」中です。\n注文一元管理の内容と食い違う変更になっていませんか？\n\nこのまま変更して大丈夫ですか？`);
+  }
+  return true;
+}
 function onCellEdit(el) {
+  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
   if (el.dataset.field === 'customer') autoCarrier(el.dataset.key);
 }
@@ -1247,6 +1259,7 @@ function autoCarrier(key) {
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 // シル「シ」・段ボ「段」のトグル表示。ON=有で表示、OFF=無で空
 function onSealToggle(el){
+  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
   const on = el.classList.contains('on');
   saveField(el.dataset.key, el.dataset.field, on ? '無' : '有');
 }
@@ -1283,6 +1296,7 @@ function openDuePicker(el, ev) {
   const wasKey = dueKey;
   closeDuePop();
   if (wasKey === el.dataset.key) return;   // 同じセルを再タップ → 閉じる
+  if (!editGuard(el.dataset.key, 'due')) return;
   dueKey = el.dataset.key;
   const it = allItems.find(i => itemKey(i) === dueKey);
   dueSel = String((it && it.due) || '').split(',').filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
@@ -1347,6 +1361,7 @@ function autoZaikoForB(key, field, val) {
   if (field === 'grade' && String(val).includes('B')) saveField(key, 'zaiko', '1');
 }
 function onGenSelChange(el) {
+  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
   if (el.value === '__other__') {
     const v = prompt('値を入力してください');
     if (v !== null && v.trim()) {
@@ -1394,14 +1409,25 @@ function onOrdChange(el) {
   }
 }
 function onHmChange(el) {
+  if (!editGuard(el.dataset.key, 'hinmei')) { render(); return; }
   saveField(el.dataset.key, 'hinmei', el.value);
   if (el.value === 'P') saveField(el.dataset.key, 'thickness', '12');
 }
-function onZaikoChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'1':''); }
+function onZaikoChange(el) {
+  if (!editGuard(el.dataset.key, el.dataset.field)) { render(); return; }
+  saveField(el.dataset.key, el.dataset.field, el.checked?'1':'');
+}
 // 両切「切」・塗装「塗」のトグル表示。ON=1で切/塗を表示、OFFで空
 function onMarkToggle(el){
   const on = el.classList.contains('on');
-  saveField(el.dataset.key, el.dataset.field, on ? '' : '1');
+  const f = el.dataset.field;
+  // 塗装・両端カットの「あり」をオフに戻すときは注文との齟齬を確認
+  if (on && (f === 'tosou' || f === 'ryoutan')) {
+    const nm = f === 'tosou' ? '塗装' : '両端カット';
+    if (!confirm(`⚠️ 「${nm}あり」をオフにします。\n注文一元管理では${nm}ありになっていませんか？\n\nオフにして大丈夫ですか？`)) { render(); return; }
+  }
+  if (!editGuard(el.dataset.key, f)) { render(); return; }
+  saveField(el.dataset.key, f, on ? '' : '1');
 }
 
 function isArchived(key) {
