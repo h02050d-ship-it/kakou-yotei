@@ -749,8 +749,10 @@ function render() {
 
   // 製造完了 (exclude archived)
   const kanryoVisible = kanryo.filter(i => !isArchived(itemKey(i)));
-  const kanryoArchived = kanryo.filter(i => isArchived(itemKey(i)))
+  const kanryoArchivedAll = kanryo.filter(i => isArchived(itemKey(i)))
     .sort((a, b) => (b.archived_at || 0) - (a.archived_at || 0));
+  // 直近50件のみ表示（それ以前は納品書データベースから辿れるため）
+  const kanryoArchived = kanryoArchivedAll.slice(0, 50);
 
   html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button><button class="btn-add" style="background:#06C755;margin-left:6px" onclick="showShukkaModal()">🚚 出荷依頼</button></div>`;
   if (kanryoVisible.length) {
@@ -771,10 +773,13 @@ function render() {
   // 出荷完了
   html += `<div class="sec-head" style="padding-top:12px">
     <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>出荷完了</h2>
-    <span class="count">${kanryoArchived.length}件</span>
-    ${kanryoArchived.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
+    <span class="count">${kanryoArchivedAll.length}件</span>
+    ${kanryoArchivedAll.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
   </div>`;
   if (showArchive && kanryoArchived.length) {
+    if (kanryoArchivedAll.length > kanryoArchived.length) {
+      html += `<div style="padding:4px 16px;color:#999;font-size:12px">直近${kanryoArchived.length}件を表示中（それ以前は納品書データベースから確認できます）</div>`;
+    }
     html += `<div class="table-scroll"><table class="tbl-archive"><thead><tr>`;
     kanryoCols.forEach(c => { html += `<th>${c==='order'?'出荷日':(COL_LABELS[c]||c)}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
