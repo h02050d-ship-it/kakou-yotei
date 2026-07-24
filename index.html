@@ -266,6 +266,7 @@
   .tbl-archive tbody tr { background: #f9f9f9; }
   .tbl-archive tbody td { font-size: 13px; color: #333; }
   .tbl-archive .cust { font-weight: 600; font-size: 14px; text-align: left !important; color: #222; }
+  .arch-date { font-size: 12px; padding: 2px 4px; border: 1px solid #ccc; border-radius: 5px; color: #333; background: #fff; }
   .btn-add {
     background: #e65100; border: none; color: #fff; border-radius: 6px;
     padding: 4px 12px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 8px;
@@ -775,13 +776,13 @@ function render() {
   </div>`;
   if (showArchive && kanryoArchived.length) {
     html += `<div class="table-scroll"><table class="tbl-archive"><thead><tr>`;
-    kanryoCols.forEach(c => { html += `<th>${COL_LABELS[c]||c}</th>`; });
+    kanryoCols.forEach(c => { html += `<th>${c==='order'?'出荷日':(COL_LABELS[c]||c)}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
     kanryoArchived.forEach(it => {
       const k = itemKey(it);
       const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr>
-        <td>${e2(getVal(it,'order'))}</td>
+        <td><input type="date" class="arch-date" value="${isoFromTs(it.archived_at)}" onchange="onArchDate('${k}',this.value)"></td>
         <td class="cust">${e2(getVal(it,'customer'))}</td>
         <td>${e2(getVal(it,'hinmei'))}</td>
         <td>${e2(getVal(it,'grade'))}</td>
@@ -1484,6 +1485,19 @@ function onArchive(key) {
 function onRestore(key) {
   const it = allItems.find(i => itemKey(i) === key);
   if (it) { it.archived = ''; it.archived_at = ''; saveItem(it); }
+}
+// 出荷完了の「出荷日」= archived_at。タイムスタンプ⇔ISO変換と日付編集
+function isoFromTs(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  if (isNaN(d)) return '';
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function onArchDate(key, val) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  it.archived_at = val ? new Date(val + 'T00:00:00').getTime() : Date.now();
+  saveItem(it);
 }
 function toggleArchive() { showArchive = !showArchive; render(); }
 function toggleCalcCols() { showCalcCols = !showCalcCols; localStorage.setItem('show_calc_cols', showCalcCols ? '1' : ''); render(); }
