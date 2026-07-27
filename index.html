@@ -424,7 +424,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','ord_base','dblcheck','kessoku_jun','remark','important_note','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -757,8 +757,8 @@ function render() {
   const shipTs = it => it.archived_at || it.completed_at || 0;
   const kanryoArchivedAll = kanryo.filter(i => isArchived(itemKey(i)))
     .sort((a, b) => shipTs(b) - shipTs(a));
-  // 直近50件のみ表示（それ以前は納品書データベースから辿れるため）
-  const kanryoArchived = kanryoArchivedAll.slice(0, 50);
+  // 直近20件のみ表示（それ以前は納品書データベースから辿れるため）
+  const kanryoArchived = kanryoArchivedAll.slice(0, 20);
 
   html += `<div class="sec-head sec-kanryo"><h2>製造完了</h2><span class="count">${kanryoVisible.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button><button class="btn-add" style="background:#06C755;margin-left:6px" onclick="showShukkaModal()">🚚 出荷依頼</button></div>`;
   if (kanryoVisible.length) {
@@ -779,8 +779,8 @@ function render() {
   // 出荷完了
   html += `<div class="sec-head" style="padding-top:12px">
     <h2 style="color:#607d8b;font-size:13px"><span style="display:inline-block;width:4px;height:14px;background:#607d8b;border-radius:2px;margin-right:6px"></span>出荷完了</h2>
-    <span class="count">${kanryoArchivedAll.length}件</span>
-    ${kanryoArchivedAll.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
+    <span class="count">${kanryoArchived.length}件</span>
+    ${kanryoArchived.length ? `<button class="archive-toggle" onclick="toggleArchive()">${showArchive ? '閉じる' : '表示'}</button>` : ''}
   </div>`;
   if (showArchive && kanryoArchived.length) {
     if (kanryoArchivedAll.length > kanryoArchived.length) {
@@ -1447,6 +1447,7 @@ function completeItem(it) {
     if (!it.archived_at) it.archived_at = Date.now();
   }
   saveItem(it);
+  logEcShip(it);
 }
 function onOrdChange(el) {
   const key = el.dataset.key;
@@ -1491,7 +1492,30 @@ function isArchived(key) {
 }
 function onArchive(key) {
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it.archived = '1'; it.archived_at = Date.now(); saveItem(it); }
+  if (it) { it.archived = '1'; it.archived_at = Date.now(); saveItem(it); logEcShip(it); }
+}
+
+// ネット・楽天・ヤフの出荷完了は分析用にデータベーススプシ「EC出荷」タブへ蓄積
+// （納品書の履歴には出さない。二重送信はec_loggedフラグで防止・Firebaseにも控えを保存）
+function logEcShip(it) {
+  if (it.archived !== '1' || it.ec_logged) return;
+  if (!/ネット|楽天|ヤフ/.test(String(it.customer || ''))) return;
+  const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? null : n; };
+  const bun = num(it.actual) != null ? num(it.actual) : num(it.planned);
+  const rec = {
+    date: isoFromTs(it.archived_at || it.completed_at || Date.now()),
+    customer: it.customer || '',
+    hinmei: HINMEI_NAME[it.hinmei] || it.hinmei || '',
+    grade: it.grade || '',
+    t: it.thickness || '', w: it.width || '', l: it.length || '', in: it.qty || '',
+    qty: bun != null ? bun : '',
+    carrier: it.carrier || '', due: it.due || '', remark: it.remark || '',
+    ts: Date.now()
+  };
+  it.ec_logged = Date.now();
+  saveItem(it);
+  try { db.ref('ec_ship_log').push(rec); } catch (e) {}
+  fetch(GAS_URL + '?action=ecShip', { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(rec) }).catch(() => {});
 }
 function onRestore(key) {
   const it = allItems.find(i => itemKey(i) === key);
