@@ -226,6 +226,9 @@
     padding: 2px 9px; font-size: 16px; font-weight: 800; line-height: 1; cursor: pointer;
   }
   .btn-rowmenu:hover { background: #eee; color: #333; }
+  .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
+  .rowmenu-pop button.rm-note { color: #f57f17; }
+  .rowmenu-pop button.rm-note:hover { background: #fff8e1; }
   .rowmenu-pop {
     position: fixed; z-index: 3200; background: #fff; border: 1px solid #9e9e9e;
     border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.28); padding: 4px; min-width: 120px;
@@ -421,7 +424,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','ord_base','dblcheck','kessoku_jun','remark','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','stock_minus','ord_base','dblcheck','kessoku_jun','remark','important_note','archived','archived_at','completed_at','shk_sent'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -733,7 +736,8 @@ function render() {
     seizouchu.forEach((it, idx) => {
       const k = itemKey(it);
       const cust = getVal(it, 'customer');
-      const menuBtn = `<button class="btn-rowmenu" onclick="openRowMenu(this,'${k}',event)" title="コピー・削除">⋯</button>`;
+      const hasNote = !!getVal(it, 'important_note');
+      const menuBtn = `<button class="btn-rowmenu${hasNote?' has-note':''}" onclick="openRowMenu(this,'${k}',event)" title="${hasNote?'⚠️忘れちゃいけないメモあり・コピー・削除':'コピー・削除'}">⋯</button>`;
       const row = buildRow(it, 14, cols);
       const ordCls = ['7','8'].includes(String(getVal(it,'order'))) ? ' ord-faint' : '';
       html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${menuBtn}</td></tr>`;
@@ -1525,6 +1529,7 @@ function openRowMenu(btn, key, ev) {
   m.addEventListener('click', e => e.stopPropagation());
   m.innerHTML =
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
+    `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect();
@@ -1542,11 +1547,21 @@ function rowMenuCopy() {
   const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const copy = { _uid: uid };
   ['order','customer','hinmei','grade','thickness','width','length','qty','planned',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','remark','important_note'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') copy[f] = it[f];
   });
   copy.actual = '-';   // コピーは未加工扱いに（実際はリセット）
   db.ref('items/' + uid).set(copy);
+}
+function rowMenuNote() {
+  const key = rowMenuKey;
+  const it = allItems.find(i => itemKey(i) === key);
+  closeRowMenu();
+  if (!it) return;
+  const cur = getVal(it, 'important_note');
+  const v = prompt('この行で忘れちゃいけないこと（納期希望日など）を入力してください。\n納品書ツールで「加工予定表から呼出」した時にポップアップで表示されます。\n\n消す場合は空にして「OK」', cur);
+  if (v === null) return;   // キャンセル
+  saveField(key, 'important_note', v.trim());
 }
 function rowMenuDelete() {
   const key = rowMenuKey;
@@ -1690,8 +1705,10 @@ function showNouhinModal(){
     keys.forEach(k=>{
       const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
       const unmapped = !CUSTOMER_FULL[k];
+      const hasNote = groups[k].some(it=>String(it.important_note||'').trim());
+      const noteBadge = hasNote? ' <span style="background:#f57f17;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">⚠️忘れちゃいけないメモあり</span>':'';
       html+=`<tr style="cursor:pointer" data-cust="${e(k)}">
-        <td class="cust">${e(fullName(k))}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}</td>
+        <td class="cust">${e(fullName(k))}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}</td>
         <td style="text-align:center">${groups[k].length}</td>
         <td style="text-align:right"><span style="color:#1a73e8;font-weight:700">作成 ▶</span></td></tr>`;
     });
@@ -1721,6 +1738,9 @@ function buildNouhin(custAbbrev){
   if (carRaw) data.carrier = CARRIER_FULL[carRaw] || carRaw;
   // Firebaseキーも渡す（納品書の確定でこの分を出荷完了化できるように）
   data.keys = rows.map(it=> itemKey(it).replace(/[.#$/\[\]]/g,'_'));
+  // 「⋯」メニューで登録した「忘れちゃいけないメモ」も渡す（納品書側でポップアップ表示、重複除去）
+  const notes = [...new Set(rows.map(it=>String(it.important_note||'').trim()).filter(Boolean))];
+  if (notes.length) data.notes = notes;
   const url = NOUHIN_URL + '#data=' + encodeURIComponent(JSON.stringify(data));
   window.open(url, '_blank');
   closeNouhinModal();
