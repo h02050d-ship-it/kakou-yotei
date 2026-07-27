@@ -753,8 +753,10 @@ function render() {
 
   // 製造完了 (exclude archived)
   const kanryoVisible = kanryo.filter(i => !isArchived(itemKey(i)));
+  // 出荷日時。納品書ツール経由の出荷完了はarchived_atが無いので完了日時で代替
+  const shipTs = it => it.archived_at || it.completed_at || 0;
   const kanryoArchivedAll = kanryo.filter(i => isArchived(itemKey(i)))
-    .sort((a, b) => (b.archived_at || 0) - (a.archived_at || 0));
+    .sort((a, b) => shipTs(b) - shipTs(a));
   // 直近50件のみ表示（それ以前は納品書データベースから辿れるため）
   const kanryoArchived = kanryoArchivedAll.slice(0, 50);
 
@@ -791,7 +793,7 @@ function render() {
       const k = itemKey(it);
       const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr>
-        <td><input type="date" class="arch-date" value="${isoFromTs(it.archived_at)}" onchange="onArchDate('${k}',this.value)"></td>
+        <td><input type="date" class="arch-date" value="${isoFromTs(it.archived_at || it.completed_at)}" onchange="onArchDate('${k}',this.value)"></td>
         <td class="cust">${e2(getVal(it,'customer'))}</td>
         <td>${e2(getVal(it,'hinmei'))}</td>
         <td>${e2(getVal(it,'grade'))}</td>
