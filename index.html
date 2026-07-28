@@ -180,7 +180,6 @@
   .cb-seal { width: 24px; height: 24px; cursor: pointer; accent-color: #d32f2f; }
   /* 自動入力行(EC)の人的確認: 製造順セルに「確認」ボタン→押すと製造順4・実際は「内容確認」表示 */
   .ord-chk { display:inline-block; padding:3px 6px; border:1.7px dashed #d32f2f; border-radius:6px; background:#fdecec; color:#c62828; font-weight:900; font-size:clamp(12px,1vw,15px); cursor:pointer; white-space:nowrap; }
-  .act-naiyou { color:#e65100; font-weight:900; font-size:clamp(11px,0.95vw,14px); white-space:nowrap; }
   .mark-toggle {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; margin: 0 auto; border: 1.5px solid #ccc; border-radius: 5px;
@@ -645,7 +644,7 @@ function cellRenderers(it, sz) {
     qty: genSel(it,'qty',qtyOptsFor(it),sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
     actual: (String(k).startsWith('od_') && getVal(it,'humanchk') !== '1')
-      ? `<span class="act-naiyou">内容確認</span>`
+      ? `<div class="sel cdrop bnum" style="cursor:default">内容確認</div>`
       : genSel(it,'actual',actOpts,sz,'bnum'),
     seal: `<div class="mark-toggle mt-seal ${getVal(it,'seal')==='有'?'on':''}" data-key="${k}" data-field="seal" onclick="onSealToggle(this)">${getVal(it,'seal')==='有'?'シ':''}</div>`,
     danball: `<div class="mark-toggle mt-danball ${getVal(it,'danball')==='有'?'on':''}" data-key="${k}" data-field="danball" onclick="onSealToggle(this)">${getVal(it,'danball')==='有'?'段':''}</div>`,
