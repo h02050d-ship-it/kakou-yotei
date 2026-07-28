@@ -178,9 +178,9 @@
   .sel-hm { width: 100%; height: 100%; padding: 0; border-radius: 0; font-weight: 700; font-size: inherit; color: #fff; border: none; cursor: pointer; -webkit-appearance: none; appearance: none; }
   .cb-zaiko { width: 24px; height: 24px; cursor: pointer; accent-color: #4caf50; }
   .cb-seal { width: 24px; height: 24px; cursor: pointer; accent-color: #d32f2f; }
-  /* 自動入力行の人的確認トグル（未確認=赤破線で目立たせる／確認済=緑「済」） */
-  .mt-chk { border: 1.7px dashed #d32f2f !important; background: #fdecec; }
-  .mt-chk.on { border: 1.5px solid #2e7d32 !important; background: #2e7d32; }
+  /* 自動入力行(EC)の人的確認: 製造順セルに「確認」ボタン→押すと製造順4・実際は「内容確認」表示 */
+  .ord-chk { display:inline-block; padding:3px 6px; border:1.7px dashed #d32f2f; border-radius:6px; background:#fdecec; color:#c62828; font-weight:900; font-size:clamp(12px,1vw,15px); cursor:pointer; white-space:nowrap; }
+  .act-naiyou { color:#e65100; font-weight:900; font-size:clamp(11px,0.95vw,14px); white-space:nowrap; }
   .mark-toggle {
     display: inline-flex; align-items: center; justify-content: center;
     width: 26px; height: 26px; margin: 0 auto; border: 1.5px solid #ccc; border-radius: 5px;
@@ -407,9 +407,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','remark'];
-const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',humanchk:'確認',carrier:'配送',due:'納期',remark:'備考'};
-const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',humanchk:'2.5%',carrier:'3.5%',due:'5%',remark:'18%'};
+const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
+const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'納期',remark:'備考'};
+const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'5%',remark:'18%'};
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -627,6 +627,10 @@ function cellRenderers(it, sz) {
     ptime: `<span class="rc-val">${rc ? fmtRowMin(rc.min) : '-'}</span>`,
     stack: stackHtml,
     order: (()=>{
+      // EC自動入力の未確認行＝番号の代わりに「確認」ボタン（押すと製造順4＆確認済み）。市場は注文ツールで確認済みのため対象外
+      if (String(k).startsWith('od_') && getVal(it,'humanchk') !== '1') {
+        return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）">確認</span>`;
+      }
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
       const ordOpts = ['1','2','3','4','5','6','7','8','9'];
       if (String(ordCur) !== '' && !ordOpts.includes(String(ordCur))) ordOpts.unshift(String(ordCur));
@@ -640,13 +644,14 @@ function cellRenderers(it, sz) {
     length: genSel(it,'length',['-','910','1820','2000','3000','4000','300'],sz,'dim'),
     qty: genSel(it,'qty',qtyOptsFor(it),sz,''),
     planned: genSel(it,'planned',numOpts,sz,'bnum'),
-    actual: genSel(it,'actual',actOpts,sz,'bnum'),
+    actual: (String(k).startsWith('od_') && getVal(it,'humanchk') !== '1')
+      ? `<span class="act-naiyou">内容確認</span>`
+      : genSel(it,'actual',actOpts,sz,'bnum'),
     seal: `<div class="mark-toggle mt-seal ${getVal(it,'seal')==='有'?'on':''}" data-key="${k}" data-field="seal" onclick="onSealToggle(this)">${getVal(it,'seal')==='有'?'シ':''}</div>`,
     danball: `<div class="mark-toggle mt-danball ${getVal(it,'danball')==='有'?'on':''}" data-key="${k}" data-field="danball" onclick="onSealToggle(this)">${getVal(it,'danball')==='有'?'段':''}</div>`,
     ryoutan: `<div class="mark-toggle mt-kiri ${getVal(it,'ryoutan')==='1'?'on':''}" data-key="${k}" data-field="ryoutan" onclick="onMarkToggle(this)">${getVal(it,'ryoutan')==='1'?'切':''}</div>`,
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
     zaiko: `<div class="mark-toggle mt-zaiko ${getVal(it,'zaiko')==='1'?'on':''}" data-key="${k}" data-field="zaiko" onclick="onMarkToggle(this)">${getVal(it,'zaiko')==='1'?'有':''}</div>`,
-    humanchk: String(k).startsWith('od_') ? `<div class="mark-toggle mt-chk ${getVal(it,'humanchk')==='1'?'on':''}" data-key="${k}" data-field="humanchk" onclick="onMarkToggle(this)" title="自動入力の内容を人が確認したらチェック">${getVal(it,'humanchk')==='1'?'済':''}</div>` : '',
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
     due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
@@ -1468,6 +1473,12 @@ function onHmChange(el) {
   if (!editGuard(el.dataset.key, 'hinmei', el.value)) { render(); return; }
   saveField(el.dataset.key, 'hinmei', el.value);
   if (el.value === 'P') saveField(el.dataset.key, 'thickness', '12');
+}
+// EC自動入力行の「確認」ボタン: 内容を人が確認した→製造順4に入れて通常表示へ（実際列も内容確認→通常に戻る）
+function onOrderConfirm(el) {
+  const key = el.dataset.key;
+  saveField(key, 'humanchk', '1');
+  saveField(key, 'order', '4');
 }
 function onZaikoChange(el) {
   if (!editGuard(el.dataset.key, el.dataset.field, el.checked?'1':'')) { render(); return; }
