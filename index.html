@@ -633,7 +633,8 @@ function cellRenderers(it, sz) {
         return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）">確認</span>`;
       }
       // 配送確認/注文確定/支払確認中＝加工NG（赤字）。並びは製造順7の位置・解除で製造順4に入る
-      if (av === '配送確認' || av === '注文確定' || av === '支払確認') {
+      // ただし製造順8の行は例外的に番号のまま表示（2026-07-31 ネットポラ対応）
+      if ((av === '配送確認' || av === '注文確定' || av === '支払確認') && String(ordCur) !== '8') {
         return `<span class="ord-ng" title="${av}中のため加工NG（確認が取れると製造順4に入ります）">加工NG</span>`;
       }
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
