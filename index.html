@@ -199,6 +199,8 @@
   }
   .sel:focus { outline: 2px solid #1a73e8; }
   .sel-ord { background: #f0f0f0; border-radius: 20px; width: auto; padding: 2px 10px; min-width: 2.5em; }
+  /* 配送確認/支払確認中の行＝加工NG（製造順の代わりに赤字表示） */
+  .ord-ng { display: inline-block; padding: 2px 8px; border: 1.7px solid #c62828; border-radius: 20px; background: #fdecec; color: #c62828; font-weight: 900; font-size: clamp(11px, 0.9vw, 14px); white-space: nowrap; }
   .sel-jun { background: #fff3e0; color: #e65100; font-weight: 800; border-radius: 6px; width: auto; padding: 2px 10px; min-width: 2.5em; }
 
   /* 自前ドロップダウン（常に下方向に開く） */
@@ -630,6 +632,10 @@ function cellRenderers(it, sz) {
       if (String(k).startsWith('od_') && getVal(it,'humanchk') !== '1') {
         return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）">確認</span>`;
       }
+      // 配送確認/支払確認中＝加工NG（赤字）。並びは製造順7の位置・解除で製造順4に入る
+      if (av === '配送確認' || av === '支払確認') {
+        return `<span class="ord-ng" title="${av}中のため加工NG（確認が取れると製造順4に入ります）">加工NG</span>`;
+      }
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
       const ordOpts = ['1','2','3','4','5','6','7','8','9'];
       if (String(ordCur) !== '' && !ordOpts.includes(String(ordCur))) ordOpts.unshift(String(ordCur));
@@ -703,7 +709,10 @@ function render() {
 
   const items = allItems.map(it => {
     const ord = parseInt(getVal(it,'order'));
-    return { ...it, _ord: isNaN(ord)?99:ord };
+    let eff = isNaN(ord) ? 99 : ord;
+    // 配送確認/支払確認中＝加工NG。完了(9以上)でなければ並びは製造順7の位置に固定（結束予定からも外れる）
+    if (eff < 9 && isConfirmState(it)) eff = 7;
+    return { ...it, _ord: eff };
   });
 
   const kanryo = items.filter(i => i._ord >= 9).sort((a, b) => {
@@ -1427,6 +1436,9 @@ function onGenSelChange(el) {
     }
   } else {
     if (!editGuard(key, field, el.value)) { render(); return; }
+    // 変更前に確認状態だったかを控える（saveFieldで値が書き換わる前に判定）
+    const itPre = allItems.find(i => itemKey(i) === key);
+    const wasConfirm = field === 'actual' && itPre && isConfirmState(itPre);
     saveField(key, field, el.value);
     autoZaikoForB(key, field, el.value);
     if (field === 'length') onLengthSet(key, el.value);
@@ -1435,6 +1447,13 @@ function onGenSelChange(el) {
       const it = allItems.find(i => itemKey(i) === key);
       // 配送確認/支払確認に入ったら注文内容をスナップショット（以後の齟齬を具体検知）
       if (it && (el.value === '配送確認' || el.value === '支払確認') && !it.ord_base) captureOrdBase(it);
+      // 配送確認/支払確認が解除されたら製造順4に割り振り、注文内容スナップショットもリセット
+      const nowConfirm = el.value === '配送確認' || el.value === '支払確認';
+      if (it && wasConfirm && !nowConfirm) {
+        delete it.ord_base;
+        it.order = '4';
+        saveItem(it);
+      }
       const pNum = it ? parseInt(getVal(it,'planned')) : NaN;
       const aNum = parseInt(el.value);
       if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) completeItem(it);
