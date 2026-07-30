@@ -473,9 +473,9 @@ function loadData() {
           dirty = true;
         }
       }
-      // 既に配送確認/支払確認中で注文内容が未記録なら、現状を注文内容として記録
+      // 既に配送確認/注文確定/支払確認中で注文内容が未記録なら、現状を注文内容として記録
       const av0 = String(it.actual || '');
-      if ((av0 === '配送確認' || av0 === '支払確認') && !it.ord_base) {
+      if ((av0 === '配送確認' || av0 === '注文確定' || av0 === '支払確認') && !it.ord_base) {
         const base = {};
         ORD_SPEC.forEach(f => base[f] = String(it[f] == null ? '' : it[f]));
         it.ord_base = JSON.stringify(base);
@@ -531,7 +531,7 @@ const carrierColors = {'西濃':'#e65100','佐川':'#1565c0','内藤':'#6a1b9a',
 const QTY_BY_LENGTH = {'910':['20','40'],'1820':['10'],'2000':['8'],'3000':['10'],'4000':['8'],'300':['2','10']};
 function qtyOptsFor(it){ return QTY_BY_LENGTH[String(getVal(it,'length'))] || ['-','8','10','20','40','2']; }
 const numOpts = ['-',...Array.from({length:54},(_,i)=>String(i+1))];
-const actualOpts = [...numOpts,'配送確認','支払確認','塗装中'];
+const actualOpts = [...numOpts,'配送確認','注文確定','支払確認','塗装中'];
 // 自前ドロップダウン用のオプション保管（描画ごとに更新）。ネイティブselectは画面下端で
 // 上向きに開くため、常に下方向へ開く独自ドロップダウンに置き換えている。
 const cdropData = {};
@@ -609,7 +609,7 @@ function cellRenderers(it, sz) {
   if (!isNaN(plannedNum) && plannedNum >= 1) {
     actOpts = ['-', String(plannedNum)];
     for (let i = 1; i <= plannedNum + 5; i++) actOpts.push(String(i)); // 1〜予定+5を順に
-    actOpts.push('配送確認','支払確認','塗装中');
+    actOpts.push('配送確認','注文確定','支払確認','塗装中');
   } else {
     actOpts = actualOpts;
   }
@@ -632,8 +632,8 @@ function cellRenderers(it, sz) {
       if (String(k).startsWith('od_') && getVal(it,'humanchk') !== '1') {
         return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）">確認</span>`;
       }
-      // 配送確認/支払確認中＝加工NG（赤字）。並びは製造順7の位置・解除で製造順4に入る
-      if (av === '配送確認' || av === '支払確認') {
+      // 配送確認/注文確定/支払確認中＝加工NG（赤字）。並びは製造順7の位置・解除で製造順4に入る
+      if (av === '配送確認' || av === '注文確定' || av === '支払確認') {
         return `<span class="ord-ng" title="${av}中のため加工NG（確認が取れると製造順4に入ります）">加工NG</span>`;
       }
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
@@ -1277,7 +1277,7 @@ function ordDisp(field, v) {
 }
 function isConfirmState(it) {
   const av = String(getVal(it, 'actual'));
-  return av === '配送確認' || av === '支払確認';
+  return av === '配送確認' || av === '注文確定' || av === '支払確認';
 }
 // 行が確認状態のとき、現在の仕様を注文内容の基準として記録
 function captureOrdBase(it) {
@@ -1446,10 +1446,10 @@ function onGenSelChange(el) {
     // 実際が予定と同数になったら製造順を9にして完了へ移動
     if (field === 'actual') {
       const it = allItems.find(i => itemKey(i) === key);
-      // 配送確認/支払確認に入ったら注文内容をスナップショット（以後の齟齬を具体検知）
-      if (it && (el.value === '配送確認' || el.value === '支払確認') && !it.ord_base) captureOrdBase(it);
-      // 配送確認/支払確認が解除されたら製造順4に割り振り、注文内容スナップショットもリセット
-      const nowConfirm = el.value === '配送確認' || el.value === '支払確認';
+      // 配送確認/注文確定/支払確認に入ったら注文内容をスナップショット（以後の齟齬を具体検知）
+      const nowConfirm = el.value === '配送確認' || el.value === '注文確定' || el.value === '支払確認';
+      if (it && nowConfirm && !it.ord_base) captureOrdBase(it);
+      // 確認状態が解除されたら製造順4に割り振り、注文内容スナップショットもリセット
       if (it && wasConfirm && !nowConfirm) {
         delete it.ord_base;
         it.order = '4';
