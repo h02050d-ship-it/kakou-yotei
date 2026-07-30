@@ -711,7 +711,8 @@ function render() {
     const ord = parseInt(getVal(it,'order'));
     let eff = isNaN(ord) ? 99 : ord;
     // 配送確認/支払確認中＝加工NG。完了(9以上)でなければ並びは製造順7の位置に固定（結束予定からも外れる）
-    if (eff < 9 && isConfirmState(it)) eff = 7;
+    // ただし製造順8が入っている行は8の位置のまま（2026-07-31 ネットポラ対応）
+    if (eff < 8 && isConfirmState(it)) eff = 7;
     return { ...it, _ord: eff };
   });
 
