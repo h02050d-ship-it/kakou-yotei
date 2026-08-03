@@ -633,8 +633,10 @@ function cellRenderers(it, sz) {
         return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）">確認</span>`;
       }
       // 配送確認/注文確定/支払確認中＝加工NG（赤字）。並びは製造順7の位置・解除で製造順4に入る
-      // ただし製造順8の行は例外的に番号のまま表示（2026-07-31 ネットポラ対応）
-      if ((av === '配送確認' || av === '注文確定' || av === '支払確認') && String(ordCur) !== '8') {
+      // 例外: 製造順8、および人が加工工程へ入れた1〜3の行は番号のまま表示
+      //（注文側の同期が届かず実際が確認ラベルのまま残っても、現場の判断を優先する）
+      if ((av === '配送確認' || av === '注文確定' || av === '支払確認')
+          && !['1','2','3','8'].includes(String(ordCur))) {
         return `<span class="ord-ng" title="${av}中のため加工NG（確認が取れると製造順4に入ります）">加工NG</span>`;
       }
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
@@ -712,8 +714,8 @@ function render() {
     const ord = parseInt(getVal(it,'order'));
     let eff = isNaN(ord) ? 99 : ord;
     // 配送確認/支払確認中＝加工NG。完了(9以上)でなければ並びは製造順7の位置に固定（結束予定からも外れる）
-    // ただし製造順8が入っている行は8の位置のまま（2026-07-31 ネットポラ対応）
-    if (eff < 8 && isConfirmState(it)) eff = 7;
+    // ただし製造順8、および人が加工工程へ入れた1〜3の行はその位置のまま
+    if (eff >= 4 && eff < 8 && isConfirmState(it)) eff = 7;
     return { ...it, _ord: eff };
   });
 
