@@ -1855,7 +1855,7 @@ function shkGroups(items){
 // 不要になったらここから消す。判定は空白・括弧除去の部分一致。
 function shkCustNote(c){
   const x=String(c||'').replace(/[\s　()（）]/g,'');
-  if(x.includes('ニッチ')) return '※8月1日以降着希望';
+  // （ニッチ「※8月1日以降着希望」は期日到来のため2026-08-03に削除）
   return '';
 }
 // 自社配送が多い取引先：出荷依頼モーダルでデフォルト・チェックOFF（表示はする）。
