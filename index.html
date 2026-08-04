@@ -459,11 +459,11 @@ function loadData() {
     });
 
     // B等級は全て加工在庫: 加在が未チェックなら自動チェック
-    // 旧表記「B無節特上」は「B無特上」へ自動移行
+    // 旧表記「B無節特上」「B無特上」は「B特上小」へ自動移行
     // ネット/楽天/ヤフの備考に入った佐川/西濃は「配送」列へ自動移行（備考からは除去）
     allItems.forEach(it => {
       let dirty = false;
-      if (it.grade === 'B無節特上') { it.grade = 'B無特上'; dirty = true; }
+      if (it.grade === 'B無節特上' || it.grade === 'B無特上') { it.grade = 'B特上小'; dirty = true; }
       if (String(it.grade || '').includes('B') && it.zaiko !== '1') { it.zaiko = '1'; dirty = true; }
       if (/ネット|楽天|ヤフ/.test(String(it.customer || ''))) {
         const m = String(it.remark || '').match(/西濃|佐川/);
@@ -524,7 +524,7 @@ function loadData() {
 function getColOrder() { return colOrder; }
 
 // ===== Cell renderers =====
-const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B無特上'];
+const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B特上小'];
 const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#8e24aa','無節':'#1565c0','無節特上':'#6a1b9a','生節':'#795548'};
 const carrierColors = {'西濃':'#e65100','佐川':'#1565c0','内藤':'#6a1b9a','自社':'#d32f2f','引取':'#f9a825'};
 // 長さ→入数の選択肢（先頭がデフォルト）。該当する長さでは他の選択肢を出さない（＋その他）。
