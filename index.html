@@ -464,6 +464,15 @@ function loadData() {
     allItems.forEach(it => {
       let dirty = false;
       if (it.grade === 'B無節特上' || it.grade === 'B無特上') { it.grade = 'B特上小'; dirty = true; }
+      // 備考の「B級品」は等級名へ移行（B丸節/B特上小で表せる場合のみ・表せない等級は備考のまま残す）
+      if (/B級品/.test(String(it.remark || '')) && !/^B/.test(String(it.grade || ''))) {
+        const bg = { '丸節': 'B丸節', '特上小': 'B特上小', '無節特上': 'B特上小' }[String(it.grade || '')];
+        if (bg) {
+          it.grade = bg;
+          it.remark = String(it.remark).replace(/\s*B級品\s*/g, ' ').replace(/\s+/g, ' ').trim();
+          dirty = true;
+        }
+      }
       if (String(it.grade || '').includes('B') && it.zaiko !== '1') { it.zaiko = '1'; dirty = true; }
       if (/ネット|楽天|ヤフ/.test(String(it.customer || ''))) {
         const m = String(it.remark || '').match(/西濃|佐川/);
