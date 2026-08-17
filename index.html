@@ -1775,33 +1775,49 @@ function showNouhinModal(){
   // ヤフ・楽天（EC個人客）は納品書を作らないため候補から除外
   const skip = c => /^(ヤフ|楽天)/.test(c);
   kanryoItems().forEach(it=>{ const c=(it.customer||'').trim(); if(!c || skip(c)) return; (groups[c]=groups[c]||[]).push(it); });
-  const keys=Object.keys(groups).sort((a,b)=>fullName(a).localeCompare(fullName(b),'ja'));
+  // 同じ取引先でも配送が2種類以上あるなら、配送ごとに別の納品書として出す（1種類/全部空欄は従来どおり1件）
+  const entries=[];
+  Object.keys(groups).forEach(c=>{
+    const rows=groups[c];
+    const cars=[...new Set(rows.map(it=>{ const v=String(it.carrier||'').trim(); return (v&&v!=='-')?v:''; }).filter(Boolean))];
+    if(cars.length<2){ entries.push({cust:c, carrier:'', rows, label:''}); return; }
+    const byCar={};
+    rows.forEach(it=>{ const v=String(it.carrier||'').trim(); const key=(v&&v!=='-')?v:''; (byCar[key]=byCar[key]||[]).push(it); });
+    Object.keys(byCar).forEach(k=> entries.push({cust:c, carrier:k, rows:byCar[k], label:(k||'配送未設定')}));
+  });
+  entries.sort((a,b)=>{ const d=fullName(a.cust).localeCompare(fullName(b.cust),'ja'); return d!==0? d : a.carrier.localeCompare(b.carrier,'ja'); });
   const body=document.getElementById('nouhinModalBody');
   // 取引先を選ばず空の納品書を開くボタン（常に最下部に表示）
   const blankBtn='<div style="padding:12px 20px;border-top:1px solid #eee"><button onclick="window.open(NOUHIN_URL,\'_blank\');closeNouhinModal()" style="width:100%;padding:10px;border:2px dashed #1a73e8;background:#f5f9ff;color:#1a73e8;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer">＋ 空の納品書を開く</button></div>';
-  if(!keys.length){ body.innerHTML='<div style="padding:20px;color:#888">製造完了（未出荷）がありません</div>'+blankBtn; }
+  if(!entries.length){ body.innerHTML='<div style="padding:20px;color:#888">製造完了（未出荷）がありません</div>'+blankBtn; }
   else{
     let html='<table><thead><tr><th>取引先（正式名称）</th><th style="text-align:center">件数</th><th></th></tr></thead><tbody>';
-    keys.forEach(k=>{
+    entries.forEach((en,i)=>{
       const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const k=en.cust;
       const unmapped = !CUSTOMER_FULL[k];
-      const hasNote = groups[k].some(it=>String(it.important_note||'').trim());
+      const hasNote = en.rows.some(it=>String(it.important_note||'').trim());
       const noteBadge = hasNote? ' <span style="background:#f57f17;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">⚠️忘れちゃいけないメモあり</span>':'';
-      html+=`<tr style="cursor:pointer" data-cust="${e(k)}">
-        <td class="cust">${e(fullName(k))}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}</td>
-        <td style="text-align:center">${groups[k].length}</td>
+      const carBadge = en.label? ' <span style="background:#6a1b9a;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">🚚'+e(en.label)+'</span>':'';
+      html+=`<tr style="cursor:pointer" data-i="${i}">
+        <td class="cust">${e(fullName(k))}${carBadge}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}</td>
+        <td style="text-align:center">${en.rows.length}</td>
         <td style="text-align:right"><span style="color:#1a73e8;font-weight:700">作成 ▶</span></td></tr>`;
     });
     html+='</tbody></table>'+blankBtn;
     body.innerHTML=html;
-    body.querySelectorAll('tr[data-cust]').forEach(tr=> tr.addEventListener('click',()=> buildNouhin(tr.dataset.cust)));
+    body.querySelectorAll('tr[data-i]').forEach(tr=> tr.addEventListener('click',()=> buildNouhin(entries[+tr.dataset.i])));
   }
   document.getElementById('nouhinModal').classList.add('show');
 }
 function closeNouhinModal(){ document.getElementById('nouhinModal').classList.remove('show'); }
-function buildNouhin(custAbbrev){
+// en = {cust, carrier, rows, label}（配送で分割済みのエントリ）。後方互換で取引先名の文字列も受ける。
+function buildNouhin(en){
   const num=v=>{ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; };
-  const rows = kanryoItems().filter(it=> (it.customer||'').trim()===custAbbrev);
+  const custAbbrev = (typeof en==='string')? en : en.cust;
+  const rows = (typeof en==='string')
+    ? kanryoItems().filter(it=> (it.customer||'').trim()===custAbbrev)
+    : en.rows;
   const items = rows.map(it=>{
       const qty = num(it.actual); const pln = num(it.planned);
       return {
