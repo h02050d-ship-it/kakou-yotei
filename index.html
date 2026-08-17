@@ -1886,32 +1886,43 @@ function shkDefaultOff(c){
   if(x.includes('ナイス')&&x.includes('沼津')) return true;
   return false;
 }
+// 出荷依頼テキストに載せる既定＝「配送が内藤」の品目だけ（2026-08-04ユーザー指示）。
+// 引取・自社・佐川・未設定は内藤運輸へ頼まないので既定OFF（表示はする＝手動でONにはできる）。
+function shkIsNaito(it){ return String(it.carrier||'').replace(/[\s　]/g,'')==='内藤'; }
+// 実際に既定でチェックを入れるか。自社配送が多い取引先は内藤指定でもOFFのまま（誤送信防止）。
+function shkRowOn(it,c){ return shkIsNaito(it) && !shkDefaultOff(c); }
 function showShukkaModal(){
   const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const g=shkGroups(shkCandidates());
+  const shkOnCount=c=>g[c].filter(it=>shkRowOn(it,c)).length;
   const custs=Object.keys(g).sort((a,b)=>{
-    const oa=shkDefaultOff(a)?1:0, ob=shkDefaultOff(b)?1:0; // 自社配送(既定OFF＝薄い)は一番下へ
+    const oa=shkOnCount(a)>0?0:1, ob=shkOnCount(b)>0?0:1; // 送る品目が無い取引先(既定OFF＝薄い)は一番下へ
     if(oa!==ob) return oa-ob;
     return a.localeCompare(b,'ja');
   });
   const body=document.getElementById('shukkaModalBody');
   if(!custs.length){ body.innerHTML='<div style="padding:20px;color:#888">対象の品目がありません（楽天・ヤフー・ネットは除外）</div>'; document.getElementById('shukkaModal').classList.add('show'); return; }
   let html='<style>#shkList .shk-row{transition:opacity .12s}#shkList .shk-row:has(input.shk-cb:not(:checked)){opacity:.38}#shkList .shk-row:has(input.shk-cb:not(:checked)) b{text-decoration:line-through}</style>';
-  html+='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：全選択。滝川・ひかり・ナイス沼津は自社配送が多いため既定OFF）。チェックを外した品目は薄く表示（＝送りません）。右の「NEW」を入れた品目だけ🆕が付きます。</div>';
+  html+='<div style="padding:8px 16px;font-size:12px;color:#888">送る品目をチェック（既定：<b>配送が「内藤」の品目だけON</b>。引取・自社・佐川・未設定は既定OFF。滝川・ひかり・ナイス沼津は内藤指定でも既定OFF）。チェックを外した品目は薄く表示（＝送りません）。必要なら手動でONにできます。右の「NEW」を入れた品目だけ🆕が付きます。</div>';
   html+='<div id="shkList" style="max-height:42vh;overflow:auto;padding:0 16px">';
   custs.forEach(c=>{
     const offDefault=shkDefaultOff(c); // 自社配送が多い取引先は既定OFF（表示はする）
-    const note=offDefault?' <span style="font-weight:600;color:#e65100;font-size:11px">自社配送が多い・既定OFF</span>':'';
+    const note=offDefault
+      ? ' <span style="font-weight:600;color:#e65100;font-size:11px">自社配送が多い・既定OFF</span>'
+      : (shkOnCount(c)===0 ? ' <span style="font-weight:600;color:#9e9e9e;font-size:11px">内藤の品目なし・既定OFF</span>' : '');
     const cnote=shkCustNote(c)?' <span style="font-weight:600;color:#e53935;font-size:11px">'+e(shkCustNote(c))+'</span>':'';
     html+=`<div style="font-weight:800;color:#1a73e8;margin:12px 0 2px;border-bottom:2px solid #1a73e8;padding-bottom:2px">${e(c)}${note}${cnote}</div>`;
     g[c].forEach(it=>{
       const done=shkDone(it); const k=itemKey(it); const bun=shkBun(it);
       const sub=`${HINMEI_NAME[it.hinmei]||it.hinmei||'?'} ${it.grade||''} ${it.thickness||''}×${it.width||''}×${it.length||''}`;
       const badge=done?'<span style="color:#2e7d32;font-weight:700;font-size:11px">完了</span>':'<span style="color:#e65100;font-weight:700;font-size:11px">未完了</span>';
+      // 配送を必ず出す＝なぜ既定OFFなのかが一目で分かる（内藤=紫・それ以外=グレー）
+      const car=String(it.carrier||'').trim()||'配送未設定';
+      const carBadge=`<span style="color:${shkIsNaito(it)?'#6a1b9a':'#b0b0b0'};font-weight:700;font-size:11px">${e(car)}</span>`;
       html+=`<div class="shk-row" style="display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px solid #eee">
         <label style="display:flex;align-items:center;gap:8px;flex:1;cursor:pointer">
-          <input type="checkbox" class="shk-cb" data-key="${k}" ${offDefault?'':'checked'} onchange="renderShukkaText()">
-          <span style="flex:1"><span class="shk-newmark" data-key="${k}" style="display:none">🆕 </span><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
+          <input type="checkbox" class="shk-cb" data-key="${k}" ${shkRowOn(it,c)?'checked':''} onchange="renderShukkaText()">
+          <span style="flex:1"><span class="shk-newmark" data-key="${k}" style="display:none">🆕 </span><b style="font-size:15px">${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}</b> ${badge} ${carBadge} <span style="color:#999;font-size:12px">${e(sub)}</span></span>
         </label>
         <label style="display:flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:#e53935;cursor:pointer;user-select:none;white-space:nowrap">
           <input type="checkbox" class="shk-new-cb" data-key="${k}" onchange="onShkNewToggle(this)">NEW
