@@ -202,7 +202,7 @@
   /* 配送確認/支払確認中の行＝加工NG（製造順の代わりに赤字表示） */
   .ord-ng { display: block; width: 100%; box-sizing: border-box; padding: 2px 0; text-align: center; border: 1px solid #c62828; border-radius: 10px; background: #ffebee; color: #c62828; font-weight: 800; font-size: clamp(10px, 0.85vw, 15px); letter-spacing: -1px; white-space: nowrap; overflow: hidden; }
   /* 加工NGの行: バッジは通常色のまま、それ以外の文字を薄く */
-  .tbl-seizou tr.ng-row td { opacity: .38; }
+  .tbl-seizou tr.ng-row td { opacity: .4; }
   .tbl-seizou tr.ng-row td:has(.ord-ng) { opacity: 1; }
   .sel-jun { background: #fff3e0; color: #e65100; font-weight: 800; border-radius: 6px; width: auto; padding: 2px 10px; min-width: 2.5em; }
 
@@ -769,8 +769,9 @@ function render() {
       const hasNote = !!getVal(it, 'important_note');
       const menuBtn = `<button class="btn-rowmenu${hasNote?' has-note':''}" onclick="openRowMenu(this,'${k}',event)" title="${hasNote?'⚠️忘れちゃいけないメモあり・コピー・削除':'コピー・削除'}">⋯</button>`;
       const row = buildRow(it, 14, cols);
-      let ordCls = ['7','8'].includes(String(getVal(it,'order'))) ? ' ord-faint' : '';
-      if (isNgRow(it)) ordCls += ' ng-row';   // 加工NGバッジ以外の文字を薄く
+      // 薄表示は1種類だけ: NG行はng-rowのみ（ord-faintと重ねると二重に薄くなる）
+      let ordCls = isNgRow(it) ? ' ng-row'
+        : (['7','8'].includes(String(getVal(it,'order'))) ? ' ord-faint' : '');
       html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${menuBtn}</td></tr>`;
     });
     html += '</tbody></table></div>';
