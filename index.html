@@ -1902,7 +1902,7 @@ function shkDefaultOff(c){
   if(x.includes('ナイス')&&x.includes('沼津')) return true;
   return false;
 }
-// 出荷依頼テキストに載せる既定＝「配送が内藤」の品目だけ（2026-08-04ユーザー指示）。
+// 出荷依頼テキストに載せる既定＝「配送が内藤」の品目だけ（2026-08-19ユーザー指示）。
 // 引取・自社・佐川・未設定は内藤運輸へ頼まないので既定OFF（表示はする＝手動でONにはできる）。
 function shkIsNaito(it){ return String(it.carrier||'').replace(/[\s　]/g,'')==='内藤'; }
 // 実際に既定でチェックを入れるか。自社配送が多い取引先は内藤指定でもOFFのまま（誤送信防止）。
