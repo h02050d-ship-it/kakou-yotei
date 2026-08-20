@@ -323,6 +323,7 @@
   .tosou-on { background: #e1bee7 !important; }
   .grade-b { background: #d1c4e9 !important; }
   .width-alert { background: #ffd54f !important; }
+  .thick-f12 { background: #f9a825 !important; }  /* F×12mmの厚セル＝Fバッジと同じ黄 */
 
   /* Row drag */
   .drag-handle {
@@ -695,6 +696,7 @@ function buildRow(it, sz, cols, opts) {
     if (isTosou && col === 'planned') classes.push('tosou-on');
     if (col === 'grade' && String(getVal(it,'grade')).includes('B')) classes.push('grade-b');
     if (col === 'width' && getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
+    if (col === 'thickness' && getVal(it,'hinmei') === 'F' && String(getVal(it,'thickness')) === '12') classes.push('thick-f12');
     const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
     return `<td${clsAttr}>${r[col]}</td>`;
   };
