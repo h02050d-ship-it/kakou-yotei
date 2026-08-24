@@ -1457,6 +1457,7 @@ function onGenSelChange(el) {
       saveField(key, field, v.trim());
       autoZaikoForB(key, field, v.trim());
       if (field === 'length') onLengthSet(key, v.trim());
+      if (field === 'carrier') naitoShkRemind(v.trim());
     }
   } else {
     if (!editGuard(key, field, el.value)) { render(); return; }
@@ -1466,6 +1467,7 @@ function onGenSelChange(el) {
     saveField(key, field, el.value);
     autoZaikoForB(key, field, el.value);
     if (field === 'length') onLengthSet(key, el.value);
+    if (field === 'carrier') naitoShkRemind(el.value);
     // 実際が予定と同数になったら製造順を9にして完了へ移動
     if (field === 'actual') {
       const it = allItems.find(i => itemKey(i) === key);
@@ -1483,6 +1485,25 @@ function onGenSelChange(el) {
       if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) completeItem(it);
     }
   }
+}
+// 配送で「内藤」を選んだら出荷依頼を促すポップアップ。
+// 複数行まとめて入力するケースがあるため、一度表示したら10分間は再表示しない（端末ごと・localStorage）
+function naitoShkRemind(val) {
+  if (String(val || '').replace(/[\s　]/g, '') !== '内藤') return;
+  const KEY = 'naito_shk_remind_at', SUPPRESS_MS = 10 * 60 * 1000;
+  const last = parseInt(localStorage.getItem(KEY) || '0', 10) || 0;
+  if (Date.now() - last < SUPPRESS_MS) return;
+  localStorage.setItem(KEY, String(Date.now()));
+  const old = document.getElementById('naito-shk-remind');
+  if (old) old.remove();
+  const d = document.createElement('div');
+  d.id = 'naito-shk-remind';
+  d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:2px solid #6a1b9a;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:14px 18px;max-width:92vw;width:360px;font-size:14px;line-height:1.6';
+  d.innerHTML = '<div style="font-weight:700;color:#6a1b9a;margin-bottom:4px">🚚 内藤運輸のリマインド</div>'
+    + '<div>入力が終わったら<b>出荷依頼</b>をしてください。</div>'
+    + '<button onclick="this.parentNode.remove()" style="margin-top:10px;width:100%;padding:8px;background:#6a1b9a;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">OK</button>';
+  document.body.appendChild(d);
+  setTimeout(() => { const el = document.getElementById('naito-shk-remind'); if (el === d) el.remove(); }, 60000);
 }
 // 楽天・ヤフーの取引先は製造完了を飛ばして直接「出荷完了」へ入れる
 function isDirectShip(customer) {
