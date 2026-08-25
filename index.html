@@ -343,6 +343,75 @@
   tr.row-drag-over td { box-shadow: inset 0 -3px 0 #1a73e8; }
   tr.row-selected td { background: #bbdefb !important; }
   td.cell-selected { background: #bbdefb !important; box-shadow: inset 0 0 0 1px #1a73e8; }
+
+  /* ===== スマホ最適化（PC表示には影響しない） ===== */
+  @media (max-width: 767px) {
+    /* テーブルは幅を確保して横スクロールに逃がす（全列を375pxに押し込むと潰れるため） */
+    .table-scroll table { min-width: 1120px; }
+    .table-scroll { overscroll-behavior-x: contain; }
+    .tbl-archive { min-width: 1120px; }
+    /* ドラッグ・行メニュー列は指で押せる幅を確保 */
+    .tbl-seizou thead th:first-child { width: 28px !important; }
+    .tbl-seizou thead th:last-child { width: 40px !important; }
+
+    /* 列幅をスマホ用に再配分（PCの%指定だと取引先が11pxまで潰れるため px で固定） */
+    .table-scroll table th[data-col="ptime"]     { width: 50px !important; }
+    .table-scroll table th[data-col="stack"]     { width: 50px !important; }
+    .table-scroll table th[data-col="order"]     { width: 44px !important; }
+    .table-scroll table th[data-col="customer"]  { width: 130px !important; }
+    .table-scroll table th[data-col="hinmei"]    { width: 30px !important; }
+    .table-scroll table th[data-col="grade"]     { width: 74px !important; }
+    .table-scroll table th[data-col="thickness"] { width: 36px !important; }
+    .table-scroll table th[data-col="width"]     { width: 36px !important; }
+    .table-scroll table th[data-col="length"]    { width: 50px !important; }
+    .table-scroll table th[data-col="qty"]       { width: 42px !important; }
+    .table-scroll table th[data-col="planned"]   { width: 50px !important; }
+    .table-scroll table th[data-col="actual"]    { width: 50px !important; }
+    .table-scroll table th[data-col="seal"]      { width: 34px !important; }
+    .table-scroll table th[data-col="danball"]   { width: 34px !important; }
+    .table-scroll table th[data-col="ryoutan"]   { width: 34px !important; }
+    .table-scroll table th[data-col="tosou"]     { width: 34px !important; }
+    .table-scroll table th[data-col="zaiko"]     { width: 34px !important; }
+    .table-scroll table th[data-col="carrier"]   { width: 46px !important; }
+    .table-scroll table th[data-col="due"]       { width: 62px !important; }
+    .table-scroll table th[data-col="remark"]    { width: 230px !important; }
+
+    /* 横スクロールしても取引先が見えるよう左端に固定（--cust-left はJSが実測して入れる） */
+    .table-scroll table th[data-col="customer"],
+    .table-scroll table td.cust {
+      position: sticky; left: var(--cust-left, 0px); z-index: 2;
+      box-shadow: 1px 0 0 #e0e0e0;
+    }
+    .tbl-kessoku tbody tr td.cust { background: #fff; }
+    .tbl-kessoku tbody tr:nth-child(even) td.cust { background: #fff8f8; }
+    .tbl-seizou tbody tr td.cust { background: #fff; }
+    .tbl-seizou tbody tr:nth-child(even) td.cust { background: #fff8f0; }
+    .tbl-kanryo tbody tr td.cust { background: #fafafa; }
+
+    /* ヘッダーは2段組み: 1段目=タイトル+ボタン / 2段目=予想加工時間（横スクロール可） */
+    .header { flex-wrap: wrap; padding: 6px 10px; row-gap: 4px; }
+    .header h1 { font-size: 17px; }
+    .header-right { margin-left: auto; gap: 6px; font-size: 12px; }
+    .header .btn { padding: 5px 10px; font-size: 12px; }
+    .proc-estimate {
+      order: 3; flex: 0 0 100%; justify-content: flex-start;
+      flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+      gap: 6px; padding-bottom: 2px;
+    }
+    .proc-estimate .pe-item { padding: 2px 10px; }
+    .proc-estimate .pe-title { font-size: 12px; }
+    .proc-estimate .pe-label { font-size: 10px; }
+    .proc-estimate .pe-val { font-size: 15px; }
+    .proc-estimate .pe-note { display: none; }
+
+    /* セクション見出しは折り返し・納期説明は下段に全幅表示（JSの絶対配置はスマホでは無効化） */
+    .sec-head { flex-wrap: wrap; padding: 6px 10px 4px; row-gap: 4px; }
+    .due-note { margin-left: 0; flex-basis: 100%; white-space: normal; font-size: 12px; line-height: 1.4; }
+    .archive-toggle { font-size: 11px; padding: 3px 8px; margin-left: 4px; }
+    .btn-add { font-size: 12px; padding: 4px 10px; }
+
+    .kanryo-scroll { max-height: 220px; }
+  }
 </style>
 </head>
 <body>
@@ -589,10 +658,12 @@ function openCDrop(el, ev){
   addOpt('__other__', 'その他...', ' cdrop-other');
   document.body.appendChild(menu);
   const r = el.getBoundingClientRect();
-  menu.style.left = Math.round(r.left) + 'px';
   menu.style.top = Math.round(r.bottom) + 'px';            // 常にセルの下に開く
   menu.style.minWidth = Math.round(r.width) + 'px';
   menu.style.maxHeight = Math.max(window.innerHeight - r.bottom - 8, 100) + 'px';
+  menu.style.maxWidth = (window.innerWidth - 8) + 'px';
+  // 画面右端からはみ出さないよう左位置を寄せる（スマホの右寄り列で切れるのを防ぐ）
+  menu.style.left = Math.max(4, Math.min(Math.round(r.left), window.innerWidth - menu.offsetWidth - 4)) + 'px';
   openDropEl = menu; openDropAnchor = el;
 }
 function chooseCDrop(el, val){
@@ -856,6 +927,7 @@ function render() {
   initDrag();
   initRowDrag();
   initCellNav();
+  applyStickyCust();
   autoFitCells();
   updateProcEstimate();
   positionDueNote();
@@ -866,6 +938,8 @@ function render() {
 function positionDueNote() {
   const note = document.querySelector('.due-note');
   if (!note) return;
+  // スマホは見出し下段に全幅で流し込む（絶対配置しない）
+  if (window.matchMedia('(max-width: 767px)').matches) { note.style.position = ''; note.style.left = ''; return; }
   const th = document.querySelector('#tbl-seizou th[data-col="due"]');
   const head = note.closest('.sec-head');
   if (!th || !head) { note.style.position = ''; note.style.left = ''; return; }
@@ -877,6 +951,24 @@ function positionDueNote() {
   note.style.left = Math.round(left) + 'px';
 }
 window.addEventListener('resize', positionDueNote);
+
+// スマホ: 取引先列を左端に固定するための left 値を実測してCSS変数に入れる
+// （列はドラッグで並べ替えできるので、取引先より左にある列の幅を毎回合計する）
+function applyStickyCust() {
+  const on = window.matchMedia('(max-width: 767px)').matches;
+  document.querySelectorAll('.table-scroll table').forEach(tbl => {
+    if (!on) { tbl.style.removeProperty('--cust-left'); return; }
+    const th = tbl.querySelector('th[data-col="customer"]');
+    if (!th) { tbl.style.removeProperty('--cust-left'); return; }
+    let left = 0;
+    for (const sib of th.parentNode.children) {
+      if (sib === th) break;
+      left += sib.getBoundingClientRect().width;
+    }
+    tbl.style.setProperty('--cust-left', Math.round(left) + 'px');
+  });
+}
+window.addEventListener('resize', applyStickyCust);
 
 // ===== 加工予定時間の計算 =====
 // 基準: 4m・8枚入・1束 = 4分、これに1割増し(×1.1)
