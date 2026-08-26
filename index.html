@@ -318,6 +318,18 @@
   .rc-sub { font-size: 10.5px; color: #e65100; font-weight: 800; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
+
+  /* 等級〜入数に敷く品名色のうっすら版（品種を一目で判別する帯）。
+     半透明なので行の縞模様が透け、行の区切りが消えない */
+  .hm-lite-F   { background: rgba(211, 47, 47, .12) !important; }   /* Fフローリング＝赤 */
+  .hm-lite-F12 { background: rgba(249,168, 37, .20) !important; }   /* F12mm＝黄（明るいので濃いめ） */
+  .hm-lite-P   { background: rgba( 21,101,192, .12) !important; }   /* P羽目板＝青 */
+  .hm-lite-N   { background: rgba( 46,125, 50, .12) !important; }   /* Nナイス＝緑 */
+  .hm-lite-S   { background: rgba(106, 27,154, .12) !important; }   /* Sスノコ＝紫 */
+
+  /* 予定セル: 両切＝赤（両切セルと同じ#ffcdd2）／両切＋塗装＝左半分赤・右半分ピンク */
+  .plan-kiri { background: #ffcdd2 !important; }
+  .plan-both { background: linear-gradient(to right, #ffcdd2 0 50%, #f48fb1 50% 100%) !important; }
   /* 塗装ONの予定セル。「塗」トグル(#ad1457)と同じピンク系で統一。
      薄いピンク(#f8bbd0)は両切(長)の#ffcdd2と色距離19で判別不能なため、一段濃いpink200を使う */
   .tosou-on { background: #f48fb1 !important; }
@@ -752,6 +764,17 @@ function cellRenderers(it, sz) {
   };
 }
 
+// 等級〜入数に敷く「品名色のうっすら版」クラス。品名バッジ(bgMap)と同じ色分けで、
+// F=赤 / F12mm=黄 / P=青 / N=緑 / S=紫。品種が行の左半分で一目で分かるようにする
+function hinmeiLiteClass(it) {
+  const h = getVal(it,'hinmei');
+  if (h === 'F') return String(getVal(it,'thickness')) === '12' ? 'hm-lite-F12' : 'hm-lite-F';
+  if (h === 'P') return 'hm-lite-P';
+  if (h === 'N') return 'hm-lite-N';
+  if (h === 'S') return 'hm-lite-S';
+  return '';
+}
+
 function buildRow(it, sz, cols, opts) {
   const r = cellRenderers(it, sz);
   if (opts && opts.rmkDel) {
@@ -764,15 +787,31 @@ function buildRow(it, sz, cols, opts) {
   const isZaiko = getVal(it,'zaiko') === '1';
   const isRyoutan = getVal(it,'ryoutan') === '1';
   const isTosou = getVal(it,'tosou') === '1';
+  const hmLite = hinmeiLiteClass(it);   // 等級〜入数に敷く品名色のうっすら版
   const wrap = (col) => {
     if (col === 'customer' || col === 'remark') return r[col];
     const classes = [];
-    if (isZaiko && (col === 'planned' || col === 'actual')) classes.push('zaiko-on');
-    if (isRyoutan && col === 'length') classes.push('ryoutan-on');
-    if (isTosou && col === 'planned') classes.push('tosou-on');
-    if (col === 'grade' && String(getVal(it,'grade')).includes('B')) classes.push('grade-b');
-    if (col === 'width' && getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
-    if (col === 'thickness' && getVal(it,'hinmei') === 'F' && String(getVal(it,'thickness')) === '12') classes.push('thick-f12');
+    if (isZaiko && col === 'actual') classes.push('zaiko-on');
+    // 予定セル: 両切=赤／塗装=ピンク／両方=左半分赤・右半分ピンク／どちらも無ければ加在の水色
+    if (col === 'planned') {
+      if (isRyoutan && isTosou) classes.push('plan-both');
+      else if (isRyoutan) classes.push('plan-kiri');
+      else if (isTosou) classes.push('tosou-on');
+      else if (isZaiko) classes.push('zaiko-on');
+    }
+    // 等級〜入数は品名色の帯。ただし個別の注意色（B等級・幅違い・F12mm）はそちらを優先
+    if (col === 'grade') {
+      if (String(getVal(it,'grade')).includes('B')) classes.push('grade-b');
+      else if (hmLite) classes.push(hmLite);
+    } else if (col === 'thickness') {
+      if (getVal(it,'hinmei') === 'F' && String(getVal(it,'thickness')) === '12') classes.push('thick-f12');
+      else if (hmLite) classes.push(hmLite);
+    } else if (col === 'width') {
+      if (getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
+      else if (hmLite) classes.push(hmLite);
+    } else if ((col === 'length' || col === 'qty') && hmLite) {
+      classes.push(hmLite);
+    }
     if (col === 'due') {
       const df = dueDayFlag(getVal(it,'due'));
       if (df === 0) classes.push('due-cell-today');
