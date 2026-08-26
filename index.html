@@ -111,8 +111,6 @@
   .sec-kessoku h2::before { background: #c62828; }
   .sec-seizou h2 { color: #e65100; }
   .sec-seizou h2::before { background: #e65100; }
-  .due-note { margin-left: auto; font-size: 14.5px; font-weight: 700; color: #00695c; white-space: nowrap; }
-  .due-note b { color: #c62828; }
   .sec-kanryo h2 { color: #9e9e9e; }
   .sec-kanryo h2::before { background: #9e9e9e; }
 
@@ -320,9 +318,9 @@
   .rc-sub { font-size: 10.5px; color: #e65100; font-weight: 800; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
-  .tosou-on { background: #e1bee7 !important; }        /* 塗装＝紫（塗装トグルと統一） */
-  /* 等級B＝加工在庫。塗装の紫と隣り合って紛らわしかったので緑系へ（加在トグルの緑と対応） */
-  .grade-b { background: #c8e6c9 !important; }
+  /* 塗装ONの予定セル。等級Bの紫と紛らわしいのでオレンジへ（塗装トグル自体は紫のまま） */
+  .tosou-on { background: #ffe0b2 !important; }
+  .grade-b { background: #d1c4e9 !important; }         /* 等級B＝加工在庫 */
 
   /* 出荷日が当日=赤／翌日=黄。日付が変わると自動で繰り上がる */
   .due-cell-today { background: #e53935 !important; }
@@ -411,9 +409,8 @@
     .proc-estimate .pe-val { font-size: 15px; }
     .proc-estimate .pe-note { display: none; }
 
-    /* セクション見出しは折り返し・納期説明は下段に全幅表示（JSの絶対配置はスマホでは無効化） */
+    /* セクション見出しは折り返し */
     .sec-head { flex-wrap: wrap; padding: 6px 10px 4px; row-gap: 4px; }
-    .due-note { margin-left: 0; flex-basis: 100%; white-space: normal; font-size: 12px; line-height: 1.4; }
     .archive-toggle { font-size: 11px; padding: 3px 8px; margin-left: 4px; }
     .btn-add { font-size: 12px; padding: 4px 10px; }
 
@@ -843,7 +840,7 @@ function render() {
   }
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 予想加工時間・スタッカー段数を隠す' : '⏱ 予想加工時間・スタッカー段数を表示'}</button><span class="due-note">📌 出荷日＝内藤・西濃・佐川は<b>発送日</b>／自社・引取は<b>引渡し日</b></span></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 予想加工時間・スタッカー段数を隠す' : '⏱ 予想加工時間・スタッカー段数を表示'}</button></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
@@ -943,27 +940,7 @@ function render() {
   applyStickyCust();
   autoFitCells();
   updateProcEstimate();
-  positionDueNote();
 }
-
-// 納期の注意書きを、製造中テーブルの「納期」列の真上に中央揃えで配置
-// （納期列が見つからない場合はヘッダー右端のまま）
-function positionDueNote() {
-  const note = document.querySelector('.due-note');
-  if (!note) return;
-  // スマホは見出し下段に全幅で流し込む（絶対配置しない）
-  if (window.matchMedia('(max-width: 767px)').matches) { note.style.position = ''; note.style.left = ''; return; }
-  const th = document.querySelector('#tbl-seizou th[data-col="due"]');
-  const head = note.closest('.sec-head');
-  if (!th || !head) { note.style.position = ''; note.style.left = ''; return; }
-  const hr = head.getBoundingClientRect();
-  const tr = th.getBoundingClientRect();
-  note.style.position = 'absolute';
-  let left = tr.left + tr.width / 2 - note.offsetWidth / 2 - hr.left;
-  left = Math.max(4, Math.min(left, hr.width - note.offsetWidth - 4));
-  note.style.left = Math.round(left) + 'px';
-}
-window.addEventListener('resize', positionDueNote);
 
 // スマホ: 取引先列を左端に固定するための left 値を実測してCSS変数に入れる
 // （列はドラッグで並べ替えできるので、取引先より左にある列の幅を毎回合計する）
