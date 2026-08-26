@@ -184,7 +184,7 @@
     cursor: pointer; font-weight: 900; font-size: clamp(14px, 1.2vw, 20px); color: #fff; user-select: none;
   }
   .mark-toggle.mt-kiri.on { background: #d32f2f; border-color: #d32f2f; }
-  .mark-toggle.mt-tosou.on { background: #6a1b9a; border-color: #6a1b9a; }
+  .mark-toggle.mt-tosou.on { background: #ad1457; border-color: #ad1457; }  /* 塗装＝ピンク（予定セルと統一） */
   .mark-toggle.mt-seal.on { background: #2e7d32; border-color: #2e7d32; }
   .mark-toggle.mt-danball.on { background: #ef6c00; border-color: #ef6c00; }
   .mark-toggle.mt-zaiko.on { background: #4caf50; border-color: #4caf50; }
@@ -318,9 +318,9 @@
   .rc-sub { font-size: 10.5px; color: #e65100; font-weight: 800; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
-  /* 塗装ONの予定セル。等級Bの紫と紛らわしいので緑へ（塗装トグル自体は紫のまま）。
-     オレンジ案は両切(長)のピンクと近すぎ、緑なら同じ予定列で競合する加在の水色から最も離れる */
-  .tosou-on { background: #c8e6c9 !important; }
+  /* 塗装ONの予定セル。「塗」トグル(#ad1457)と同じピンク系で統一。
+     薄いピンク(#f8bbd0)は両切(長)の#ffcdd2と色距離19で判別不能なため、一段濃いpink200を使う */
+  .tosou-on { background: #f48fb1 !important; }
   .grade-b { background: #d1c4e9 !important; }         /* 等級B＝加工在庫 */
 
   /* 出荷日が当日=赤／翌日=黄。日付が変わると自動で繰り上がる */
