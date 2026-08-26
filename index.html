@@ -501,7 +501,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','archived','archived_at','completed_at','shk_sent'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','archived','archived_at','completed_at','shk_sent','ship_ok'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -1556,6 +1556,7 @@ function onGenSelChange(el) {
     // 変更前に確認状態だったかを控える（saveFieldで値が書き換わる前に判定）
     const itPre = allItems.find(i => itemKey(i) === key);
     const wasConfirm = field === 'actual' && itPre && isConfirmState(itPre);
+    const prevActual = itPre ? String(getVal(itPre, 'actual') || '') : '';
     saveField(key, field, el.value);
     autoZaikoForB(key, field, el.value);
     if (field === 'length') onLengthSet(key, el.value);
@@ -1566,6 +1567,8 @@ function onGenSelChange(el) {
       // 配送確認/注文確定/支払確認に入ったら注文内容をスナップショット（以後の齟齬を具体検知）
       const nowConfirm = el.value === '配送確認' || el.value === '注文確定' || el.value === '支払確認';
       if (it && nowConfirm && !it.ord_base) captureOrdBase(it);
+      // EC行で「配送確認」を外した→注文側にもチェックを入れるか確認（入れないと自動同期で戻る）
+      if (it && wasConfirm && !nowConfirm) askShipOkBack(it, prevActual);
       // 確認状態が解除されたら製造順4に割り振り、注文内容スナップショットもリセット
       if (it && wasConfirm && !nowConfirm) {
         delete it.ord_base;
@@ -1577,6 +1580,47 @@ function onGenSelChange(el) {
       if (it && !isNaN(pNum) && pNum >= 1 && aNum === pNum) completeItem(it);
     }
   }
+}
+// EC自動入力行(od_)で「配送確認」「支払確認」を外したときの確認ポップアップ。
+// これらの状態の正データは注文一元管理(order-desk)側にあり、そちらのチェックが入るまでは
+// 自動同期が15分ごとに「配送確認」へ書き戻す。OKなら ship_ok=1 を立てて注文側へ逆同期する。
+function askShipOkBack(it, prevActual) {
+  const k = String(itemKey(it));
+  if (!k.startsWith('od_')) return;                      // 手入力行は注文側に相手がいない
+  if (prevActual !== '配送確認' && prevActual !== '支払確認') return;  // 注文確定は楽天API側で進むので対象外
+  const isPay = prevActual === '支払確認';
+  const label = isPay ? '入金の確認' : 'お客様への配送確認';
+  const check = isPay ? '💰支払確認' : '🚚配送確認';
+  const ok = confirm(
+    `「${prevActual}」を外します。\n\n${label}はもう済んでいますか？\n\n`
+    + `［OK］注文カードの${check}にもチェックを入れます（15分以内に反映）\n`
+    + `［キャンセル］予定表の表示だけ戻します\n\n`
+    + `※OKを押さないと、自動同期でまた「${prevActual}」に戻ります。`
+  );
+  if (!ok) {                       // 元の確認状態に戻す（注文側と食い違わせない）
+    it.actual = prevActual;
+    saveItem(it);
+    render();
+    return;
+  }
+  if (isPay) {                     // 入金は注文側もAPI判定＝人手でチェックできない。手動確認を促すだけ
+    it.ship_ok = '';
+    alert('⚠️ 入金は注文側もAPIで自動判定しています。\n実際に入金されていれば自動で外れます。\n入金前に加工を進める場合は担当者に確認してください。');
+    return;
+  }
+  it.ship_ok = '1';
+  saveItem(it);
+  toastShipOk();
+}
+function toastShipOk() {
+  const old = document.getElementById('ship-ok-toast');
+  if (old) old.remove();
+  const d = document.createElement('div');
+  d.id = 'ship-ok-toast';
+  d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:2px solid #2e7d32;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:12px 18px;max-width:92vw;font-size:14px;line-height:1.6';
+  d.innerHTML = '<b style="color:#2e7d32">✅ 注文側へ反映します</b><br>注文カードの🚚配送確認に自動でチェックが入ります（15分以内）。';
+  document.body.appendChild(d);
+  setTimeout(() => { const el = document.getElementById('ship-ok-toast'); if (el === d) el.remove(); }, 8000);
 }
 // 配送で「内藤」を選んだら出荷依頼を促すポップアップ。
 // 複数行まとめて入力するケースがあるため、一度表示したら10分間は再表示しない（端末ごと・localStorage）
