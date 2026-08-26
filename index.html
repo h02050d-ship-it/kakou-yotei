@@ -1756,7 +1756,7 @@ function logEcShip(it) {
   it.ec_logged = Date.now();
   saveItem(it);
   try { db.ref('ec_ship_log').push(rec); } catch (e) {}
-  fetch(GAS_URL + '?action=ecShip', { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(rec) }).catch(() => {});
+  fetch(GAS_URL + '?action=ecShip&k=nk-9t2Xr7Lq4wPz', { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(rec) }).catch(() => {});
 }
 function onRestore(key) {
   const it = allItems.find(i => itemKey(i) === key);
@@ -2251,7 +2251,7 @@ function syncToSheet() {
       actual: it.actual || '',
       remark: it.remark || ''
     }));
-    fetch(GAS_URL + '?action=syncKanryo', {
+    fetch(GAS_URL + '?action=syncKanryo&k=nk-9t2Xr7Lq4wPz', {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
