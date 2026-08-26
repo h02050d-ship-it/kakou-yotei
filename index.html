@@ -1604,7 +1604,6 @@ function askShipOkBack(it, prevActual) {
     return;
   }
   if (isPay) {                     // 入金は注文側もAPI判定＝人手でチェックできない。手動確認を促すだけ
-    it.ship_ok = '';
     alert('⚠️ 入金は注文側もAPIで自動判定しています。\n実際に入金されていれば自動で外れます。\n入金前に加工を進める場合は担当者に確認してください。');
     return;
   }
