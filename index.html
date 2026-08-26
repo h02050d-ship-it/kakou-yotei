@@ -320,8 +320,15 @@
   .rc-sub { font-size: 10.5px; color: #e65100; font-weight: 800; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
   .ryoutan-on { background: #ffcdd2 !important; }
-  .tosou-on { background: #e1bee7 !important; }
-  .grade-b { background: #d1c4e9 !important; }
+  .tosou-on { background: #e1bee7 !important; }        /* 塗装＝紫（塗装トグルと統一） */
+  /* 等級B＝加工在庫。塗装の紫と隣り合って紛らわしかったので緑系へ（加在トグルの緑と対応） */
+  .grade-b { background: #c8e6c9 !important; }
+
+  /* 出荷日が当日=赤／翌日=黄。日付が変わると自動で繰り上がる */
+  .due-cell-today { background: #e53935 !important; }
+  .due-cell-today .due-disp, .due-cell-today .due-or { color: #fff !important; }
+  .due-cell-tomorrow { background: #ffeb3b !important; }
+  .due-cell-tomorrow .due-disp, .due-cell-tomorrow .due-or { color: #5d4037 !important; }
   .width-alert { background: #ffd54f !important; }
   .thick-f12 { background: #f9a825 !important; }  /* F×12mmの厚セル＝Fバッジと同じ黄 */
 
@@ -482,7 +489,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
-const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'納期',remark:'備考'};
+const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'出荷日',remark:'備考'};
 const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'5%',remark:'18%'};
 
 let allItems = [];
@@ -768,6 +775,11 @@ function buildRow(it, sz, cols, opts) {
     if (col === 'grade' && String(getVal(it,'grade')).includes('B')) classes.push('grade-b');
     if (col === 'width' && getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
     if (col === 'thickness' && getVal(it,'hinmei') === 'F' && String(getVal(it,'thickness')) === '12') classes.push('thick-f12');
+    if (col === 'due') {
+      const df = dueDayFlag(getVal(it,'due'));
+      if (df === 0) classes.push('due-cell-today');
+      else if (df === 1) classes.push('due-cell-tomorrow');
+    }
     const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
     return `<td${clsAttr}>${r[col]}</td>`;
   };
@@ -831,7 +843,7 @@ function render() {
   }
 
   // 製造中
-  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 予想加工時間・スタッカー段数を隠す' : '⏱ 予想加工時間・スタッカー段数を表示'}</button><span class="due-note">📌 納期＝内藤・西濃・佐川は<b>発送日</b>／自社・引取は<b>引渡し日</b></span></div>`;
+  html += `<div class="sec-head sec-seizou"><h2>製造中</h2><span class="count">${seizouchu.length}件</span><button class="btn-add" onclick="onAddRow()">+ 行追加</button><button class="archive-toggle" onclick="toggleCalcCols()" title="行ごとの予想加工時間と、スタッカー(9枚/段)に積むのに必要な段数を表示します">${showCalcCols ? '⏱ 予想加工時間・スタッカー段数を隠す' : '⏱ 予想加工時間・スタッカー段数を表示'}</button><span class="due-note">📌 出荷日＝内藤・西濃・佐川は<b>発送日</b>／自社・引取は<b>引渡し日</b></span></div>`;
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
@@ -892,7 +904,8 @@ function render() {
       html += `<div style="padding:4px 16px;color:#999;font-size:12px">直近${kanryoArchived.length}件を表示中（それ以前は納品書データベースから確認できます）</div>`;
     }
     html += `<div class="table-scroll"><table class="tbl-archive"><thead><tr>`;
-    kanryoCols.forEach(c => { html += `<th>${c==='order'?'出荷日':(COL_LABELS[c]||c)}</th>`; });
+    // 1列目=実際に出荷完了にした日。due列が「出荷日」になったので名前を分ける
+    kanryoCols.forEach(c => { html += `<th>${c==='order'?'出荷完了日':(COL_LABELS[c]||c)}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
     kanryoArchived.forEach(it => {
       const k = itemKey(it);
@@ -969,6 +982,21 @@ function applyStickyCust() {
   });
 }
 window.addEventListener('resize', applyStickyCust);
+
+// 日付が変わったら「明日」を「本日」へ繰り上げる（工場では開きっぱなしのため）
+// 編集中・カレンダー表示中は描き直すと入力が飛ぶので見送り、次の周期でやり直す
+let _dayStamp = new Date().toDateString();
+function watchDayChange() {
+  const now = new Date().toDateString();
+  if (now === _dayStamp) return;
+  const ae = document.activeElement;
+  if (duePop || openDropEl) return;
+  if (ae && ae.getAttribute && ae.getAttribute('contenteditable') === 'true') return;
+  _dayStamp = now;
+  render();
+}
+setInterval(watchDayChange, 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) watchDayChange(); });
 
 // ===== 加工予定時間の計算 =====
 // 基準: 4m・8枚入・1束 = 4分、これに1割増し(×1.1)
@@ -1443,8 +1471,33 @@ function onSealToggle(el){
   if (!editGuard(el.dataset.key, el.dataset.field, on ? '無' : '有')) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, on ? '無' : '有');
 }
-// 納期: ISO(yyyy-mm-dd、複数はカンマ区切り)で保存し「7/7㈫ or 7/9㈭」形式で表示
+// 出荷日: ISO(yyyy-mm-dd、複数はカンマ区切り)で保存し「7/7㈫ or 7/9㈭」形式で表示
+// 当日は「本日」(赤)、翌日は「明日」(黄)に置き換える。日付が変われば自動で繰り上がる（watchDayChange）
 const DUE_WD = ['㈰','㈪','㈫','㈬','㈭','㈮','㈯'];
+// その日付が今日から何日後か。0=本日 1=明日。日付として読めなければ null
+function dueOffsetDays(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return null;
+  const t = new Date(); t.setHours(0,0,0,0);
+  d.setHours(0,0,0,0);
+  return Math.round((d - t) / 86400000);
+}
+// セル背景用: 複数日のうち一番近い日を採用。0=本日 1=明日 それ以外は null
+function dueDayFlag(v) {
+  let best = null;
+  String(v || '').split(',').filter(Boolean).forEach(s => {
+    const n = dueOffsetDays(s);
+    if (n === 0 || n === 1) best = (best === null) ? n : Math.min(best, n);
+  });
+  return best;
+}
+function dueLabel(iso) {
+  const n = dueOffsetDays(iso);
+  if (n === 0) return '本日';
+  if (n === 1) return '明日';
+  const d = new Date(iso + 'T00:00:00');
+  return isNaN(d) ? iso : ((d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()]);
+}
 function fmtDue(v) {
   if (!v) return '';
   return String(v).split(',').filter(Boolean).map(s => {
@@ -1453,14 +1506,11 @@ function fmtDue(v) {
     return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
   }).join(' or ');
 }
-// 納期セル表示: 1日=横1行、複数日=上下2行(小さめ)で「7/7㈫ / or 7/9㈭」→備考へはみ出さない
+// 出荷日セル表示: 1日=横1行、複数日=上下2行(小さめ)で「7/7㈫ / or 7/9㈭」→備考へはみ出さない
 function dueDispHtml(v) {
   const arr = String(v || '').split(',').filter(Boolean);
   if (!arr.length) return '<span class="due-disp">-</span>';
-  const parts = arr.map(s => {
-    const d = new Date(s + 'T00:00:00');
-    return isNaN(d) ? s : ((d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()]);
-  });
+  const parts = arr.map(s => dueLabel(s));
   if (parts.length === 1) return '<span class="due-disp">' + parts[0] + '</span>';
   return '<span class="due-disp multi">' +
     parts.map(p => '<span class="due-d">' + p + '</span>').join('<span class="due-or">or</span>') +
