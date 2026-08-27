@@ -231,7 +231,10 @@
     padding: 2px 9px; font-size: 16px; font-weight: 800; line-height: 1; cursor: pointer;
   }
   .btn-rowmenu:hover { background: #eee; color: #333; }
+  .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
+  .rowmenu-pop button.rm-tokka { color: #2e7d32; }
+  .rowmenu-pop button.rm-tokka:hover { background: #e8f5e9; }
   .rowmenu-pop button.rm-note { color: #f57f17; }
   .rowmenu-pop button.rm-note:hover { background: #fff8e1; }
   .rowmenu-pop {
@@ -510,7 +513,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','archived','archived_at','completed_at','shk_sent','ship_ok'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','archived','archived_at','completed_at','shk_sent','ship_ok'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -860,7 +863,9 @@ function render() {
       const k = itemKey(it);
       const cust = getVal(it, 'customer');
       const hasNote = !!getVal(it, 'important_note');
-      const menuBtn = `<button class="btn-rowmenu${hasNote?' has-note':''}" onclick="openRowMenu(this,'${k}',event)" title="${hasNote?'⚠️忘れちゃいけないメモあり・コピー・削除':'コピー・削除'}">⋯</button>`;
+      const hasTokka = !!getVal(it, 'tokka');
+      const menuTitle = (hasNote?'⚠️忘れちゃいけないメモあり・':'') + (hasTokka?`💴特価${getVal(it,'tokka')}円・`:'') + 'コピー・削除';
+      const menuBtn = `<button class="btn-rowmenu${hasTokka?' has-tokka':''}${hasNote?' has-note':''}" onclick="openRowMenu(this,'${k}',event)" title="${menuTitle}">⋯</button>`;
       const row = buildRow(it, 14, cols);
       // 薄表示は1種類だけ: NG行はng-rowのみ（ord-faintと重ねると二重に薄くなる）
       let ordCls = isNgRow(it) ? ' ng-row'
@@ -1804,9 +1809,12 @@ function openRowMenu(btn, key, ev) {
   const m = document.createElement('div');
   m.className = 'rowmenu-pop';
   m.addEventListener('click', e => e.stopPropagation());
+  const _it = allItems.find(i => itemKey(i) === key);
+  const _tk = _it ? getVal(_it, 'tokka') : '';
   m.innerHTML =
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
+    `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect();
@@ -1839,6 +1847,21 @@ function rowMenuNote() {
   const v = prompt('この行で忘れちゃいけないこと（納期希望日など）を入力してください。\n納品書ツールで「加工予定表から呼出」した時にポップアップで表示されます。\n\n消す場合は空にして「OK」', cur);
   if (v === null) return;   // キャンセル
   saveField(key, 'important_note', v.trim());
+}
+// 今回のみの特価（円/束）。納品書作成時にこの単価が自動反映される（価格表・DBの単価記憶は触らない）
+function rowMenuTokka() {
+  const key = rowMenuKey;
+  const it = allItems.find(i => itemKey(i) === key);
+  closeRowMenu();
+  if (!it) return;
+  const cur = getVal(it, 'tokka');
+  const v = prompt('この行の特価（円/束・税別）を入力してください。今回のみ適用されます。\n納品書作成時にこの単価が自動で入り、特価であることがポップアップで表示されます。\n\n解除する場合は空にして「OK」', cur);
+  if (v === null) return;   // キャンセル
+  const raw = v.replace(/[,，円\s]/g, '');
+  if (raw === '') { saveField(key, 'tokka', ''); return; }   // 解除
+  const n = parseFloat(raw);
+  if (isNaN(n) || n <= 0) { alert('金額は正の数字で入力してください'); return; }
+  saveField(key, 'tokka', String(n));
 }
 function rowMenuDelete() {
   const key = rowMenuKey;
@@ -1995,9 +2018,11 @@ function showNouhinModal(){
       const unmapped = !CUSTOMER_FULL[k];
       const hasNote = en.rows.some(it=>String(it.important_note||'').trim());
       const noteBadge = hasNote? ' <span style="background:#f57f17;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">⚠️忘れちゃいけないメモあり</span>':'';
+      const hasTokka = en.rows.some(it=>String(it.tokka||'').trim());
+      const tokkaBadge = hasTokka? ' <span style="background:#2e7d32;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">💴特価あり</span>':'';
       const carBadge = en.label? ' <span style="background:#6a1b9a;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">🚚'+e(en.label)+'</span>':'';
       html+=`<tr style="cursor:pointer" data-i="${i}">
-        <td class="cust">${e(fullName(k))}${carBadge}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}</td>
+        <td class="cust">${e(fullName(k))}${carBadge}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}${tokkaBadge}</td>
         <td style="text-align:center">${en.rows.length}</td>
         <td style="text-align:right"><span style="color:#1a73e8;font-weight:700">作成 ▶</span></td></tr>`;
     });
@@ -2017,12 +2042,15 @@ function buildNouhin(en){
     : en.rows;
   const items = rows.map(it=>{
       const qty = num(it.actual); const pln = num(it.planned);
-      return {
+      const tokka = num(it.tokka);
+      const o = {
         name: HINMEI_NAME[it.hinmei]||it.hinmei||'',
         grade: it.grade||'',
         t: it.thickness||'', w: it.width||'', l: it.length||'', in: it.qty||'',
         qty: (qty!=null?qty:(pln!=null?pln:''))
       };
+      if (tokka!=null && tokka>0) o.price = tokka;   // ⋯メニューの特価設定＝今回のみの単価
+      return o;
     });
   const data = { mode:'納品書', customer: fullName(custAbbrev), taxrate:10, items };
   // 配送列の入力があれば納品書の配送業者へ（略称→納品書側の正式名）
@@ -2034,6 +2062,10 @@ function buildNouhin(en){
   // 「⋯」メニューで登録した「忘れちゃいけないメモ」も渡す（納品書側でポップアップ表示、重複除去）
   const notes = [...new Set(rows.map(it=>String(it.important_note||'').trim()).filter(Boolean))];
   if (notes.length) data.notes = notes;
+  // 特価設定の明細一覧（納品書側で「特価で単価設定済み」ポップアップに使う）
+  const tokkaMsgs = [...new Set(items.filter(o=>o.price!=null).map(o=>
+    [o.name, o.grade, o.l?o.l+'mm':''].filter(Boolean).join(' ') + '：' + o.price.toLocaleString() + '円/束'))];
+  if (tokkaMsgs.length) data.tokka = tokkaMsgs;
   const url = NOUHIN_URL + '#data=' + encodeURIComponent(JSON.stringify(data));
   window.open(url, '_blank');
   closeNouhinModal();
