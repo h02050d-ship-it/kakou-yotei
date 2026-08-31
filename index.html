@@ -232,9 +232,30 @@
   }
   .btn-rowmenu:hover { background: #eee; color: #333; }
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
+  .btn-rowmenu.has-soryo { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
   .rowmenu-pop button.rm-tokka { color: #2e7d32; }
   .rowmenu-pop button.rm-tokka:hover { background: #e8f5e9; }
+  .rowmenu-pop button.rm-soryo { color: #1565c0; }
+  .rowmenu-pop button.rm-soryo:hover { background: #e3f2fd; }
+  /* 送料設定モーダル */
+  .sr-body { padding: 16px 20px 18px; }
+  .sr-row { font-size: 14px; color: #455a64; line-height: 1.7; background: #f5f7f9; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .sr-row b { color: #263238; font-size: 15px; }
+  .sr-label { display: block; font-size: 13px; font-weight: 700; color: #37474f; margin: 0 0 4px; }
+  .sr-input { width: 100%; padding: 10px 12px; font-size: 20px; font-weight: 700; border: 2px solid #90a4ae; border-radius: 8px; box-sizing: border-box; }
+  .sr-input:focus { outline: none; border-color: #1565c0; }
+  .sr-sel { width: 100%; padding: 9px 10px; font-size: 15px; border: 1px solid #b0bec5; border-radius: 8px; box-sizing: border-box; background: #fff; }
+  .sr-res { margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; font-size: 14px; line-height: 1.6; }
+  .sr-res.ok { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; font-weight: 700; }
+  .sr-res.ng { background: #fff8e1; color: #e65100; border: 1px solid #ffe082; }
+  .sr-res.na { background: #f5f5f5; color: #777; border: 1px solid #e0e0e0; }
+  .sr-warn { margin-top: 10px; font-size: 13px; color: #c62828; font-weight: 700; line-height: 1.5; }
+  .sr-btns { display: flex; gap: 8px; margin-top: 16px; }
+  .sr-btns button { flex: 1; padding: 11px 8px; font-size: 15px; font-weight: 700; border-radius: 8px; cursor: pointer; border: none; }
+  .sr-ok { background: #1565c0; color: #fff; }
+  .sr-clear { background: #fff; color: #c62828; border: 1px solid #ef9a9a !important; flex: 0 0 auto !important; padding: 11px 14px !important; }
+  .sr-cancel { background: #eceff1; color: #455a64; flex: 0 0 auto !important; padding: 11px 14px !important; }
   .rowmenu-pop button.rm-note { color: #f57f17; }
   .rowmenu-pop button.rm-note:hover { background: #fff8e1; }
   .rowmenu-pop {
@@ -452,6 +473,12 @@
     <div id="nouhinModalBody"></div>
   </div>
 </div>
+<div class="modal-overlay" id="soryoModal" onclick="if(event.target===this)closeSoryoModal()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head" style="background:#1565c0">🚚 送料設定<button class="modal-close" onclick="closeSoryoModal()">&times;</button></div>
+    <div class="sr-body" id="soryoModalBody"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="calcModal" onclick="if(event.target===this)closeCalcModal()">
   <div class="modal">
     <div class="modal-head">予想加工時間の計算方法<button class="modal-close" onclick="closeCalcModal()">&times;</button></div>
@@ -513,7 +540,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','archived','archived_at','completed_at','shk_sent','ship_ok'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -862,10 +889,7 @@ function render() {
     seizouchu.forEach((it, idx) => {
       const k = itemKey(it);
       const cust = getVal(it, 'customer');
-      const hasNote = !!getVal(it, 'important_note');
-      const hasTokka = !!getVal(it, 'tokka');
-      const menuTitle = (hasNote?'⚠️忘れちゃいけないメモあり・':'') + (hasTokka?`💴特価${getVal(it,'tokka')}円・`:'') + 'コピー・削除';
-      const menuBtn = `<button class="btn-rowmenu${hasTokka?' has-tokka':''}${hasNote?' has-note':''}" onclick="openRowMenu(this,'${k}',event)" title="${menuTitle}">⋯</button>`;
+      const menuBtn = rowMenuBtnHtml(it, k);
       const row = buildRow(it, 14, cols);
       // 薄表示は1種類だけ: NG行はng-rowのみ（ord-faintと重ねると二重に薄くなる）
       let ordCls = isNgRow(it) ? ' ng-row'
@@ -896,10 +920,10 @@ function render() {
     kanryoCols.forEach((c,i) => {
       html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
     });
-    html += `<th></th></tr></thead><tbody>`;
+    html += `<th style="width:2%"></th><th></th></tr></thead><tbody>`;
     kanryoVisible.forEach(it => {
       const k = itemKey(it);
-      html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
+      html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
     });
     html += '</tbody></table></div>';
   } else {
@@ -1797,6 +1821,19 @@ function onDeleteRow(key) {
   db.ref('items/' + key.replace(/[.#$/\[\]]/g,'_')).remove();
 }
 
+// ⋯ボタン（製造中・製造完了で共通）。設定済みの特価/送料/メモは色とツールチップで分かるようにする
+function rowMenuBtnHtml(it, k) {
+  const hasNote = !!getVal(it, 'important_note');
+  const hasTokka = !!getVal(it, 'tokka');
+  const hasSoryo = !!getVal(it, 'soryo');
+  const title = (hasNote ? '⚠️忘れちゃいけないメモあり・' : '')
+    + (hasTokka ? `💴特価${getVal(it,'tokka')}円・` : '')
+    + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
+    + 'コピー・削除';
+  const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '');
+  return `<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}">⋯</button>`;
+}
+
 // 行メニュー（コピー・削除のポップアップ）
 let rowMenuEl = null, rowMenuKey = null;
 function closeRowMenu() { if (rowMenuEl) { rowMenuEl.remove(); rowMenuEl = null; rowMenuKey = null; } }
@@ -1811,10 +1848,12 @@ function openRowMenu(btn, key, ev) {
   m.addEventListener('click', e => e.stopPropagation());
   const _it = allItems.find(i => itemKey(i) === key);
   const _tk = _it ? getVal(_it, 'tokka') : '';
+  const _sr = _it ? getVal(_it, 'soryo') : '';
   m.innerHTML =
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
+    `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect();
@@ -1863,6 +1902,171 @@ function rowMenuTokka() {
   if (isNaN(n) || n <= 0) { alert('金額は正の数字で入力してください'); return; }
   saveField(key, 'tokka', String(n));
 }
+// ===== 送料設定（🚚 行メニュー）=====
+// この行に紐づく送料。納品書作成時に「運賃(税抜)」へ自動で入る。
+// 金額の照合には運賃計算ツールと同じ運賃表(soryo_table.json・市売/税抜)を使うので、
+// 送料改定は fare-calculator 側を直せばこちらも自動で追従する。
+const SORYO_TABLE_URL = 'https://h02050d-ship-it.github.io/fare-calculator/soryo_table.json';
+let soryoTable = null, soryoTableErr = false, soryoKey = null;
+function loadSoryoTable() {
+  if (soryoTable || soryoTableErr) return Promise.resolve(soryoTable);
+  return fetch(SORYO_TABLE_URL)
+    .then(r => { if (!r.ok) throw new Error('http ' + r.status); return r.json(); })
+    .then(j => { soryoTable = j; return j; })
+    .catch(() => { soryoTableErr = true; return null; });
+}
+// 行の長さ(mm) → 運賃表の長さ帯。運賃表は西濃の2m/3m/4mのみ（910/300は佐川で対象外）
+function soryoLenKey(len) {
+  const n = parseInt(String(len || '').replace(/[^0-9]/g, ''), 10);
+  if (n === 2000) return { k: '2', label: '2m', note: '' };
+  if (n === 3000) return { k: '3', label: '3m', note: '' };
+  if (n === 4000) return { k: '4', label: '4m', note: '' };
+  if (n === 1820) return { k: '2', label: '1820mm', note: '※1820mmは2m帯の運賃で照合しています' };
+  return null;
+}
+// 束数は出荷依頼と同じ考え方（製造完了=実際／製造中=予定）
+function soryoBun(it) { const n = shkBun(it); return (n != null && n > 0) ? n : 0; }
+function soryoPrefList() { return (soryoTable && (soryoTable.prefs || Object.keys(soryoTable.single))) || []; }
+function soryoFare(pref, lenKey, bun) {
+  if (!soryoTable || !lenKey || !bun) return null;
+  const arr = soryoTable.single[pref] && soryoTable.single[pref][lenKey];
+  const v = arr ? arr[bun - 1] : null;
+  return (v == null) ? null : Number(v);
+}
+// 金額 → 一致する都道府県（同額の県が複数あるのが普通なので配列で返す）
+function soryoMatchPrefs(lenKey, bun, yen) {
+  if (!soryoTable || !lenKey || !bun || !yen) return [];
+  return soryoPrefList().filter(pf => soryoFare(pf, lenKey, bun) === Number(yen));
+}
+function rowMenuSoryo() {
+  const key = rowMenuKey;
+  closeRowMenu();
+  openSoryoModal(key);
+}
+function closeSoryoModal() { document.getElementById('soryoModal').classList.remove('show'); soryoKey = null; }
+function openSoryoModal(key) {
+  soryoKey = key;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  document.getElementById('soryoModal').classList.add('show');
+  renderSoryoBody(getVal(it, 'soryo'));
+  loadSoryoTable().then(() => {
+    if (soryoKey !== key) return;                       // 読込中に閉じられた
+    const el = document.getElementById('soryo-input');
+    renderSoryoBody(el ? el.value : getVal(it, 'soryo'));
+  });
+}
+function renderSoryoBody(val) {
+  const it = allItems.find(i => itemKey(i) === soryoKey);
+  const body = document.getElementById('soryoModalBody');
+  if (!it || !body) return;
+  const e = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const lk = soryoLenKey(getVal(it, 'length'));
+  const bun = soryoBun(it);
+  const dim = [getVal(it, 'thickness'), getVal(it, 'width'), getVal(it, 'length')].filter(Boolean).join('×');
+  // 同じ納品書にまとまる他の行にも送料が入っていないか（合算されて二重請求になるため）
+  const cust = (getVal(it, 'customer') || '').trim();
+  const car = String(it.carrier || '').trim();
+  const others = allItems.filter(o => o !== it && o.archived !== '1' && (o.customer || '').trim() === cust
+    && String(o.carrier || '').trim() === car && parseFloat(o.soryo || 0) > 0);
+  const otherSum = others.reduce((a, o) => a + parseFloat(o.soryo || 0), 0);
+  let selHtml = '';
+  if (soryoTable && lk && bun) {
+    const opts = soryoPrefList().map(pf => {
+      const v = soryoFare(pf, lk.k, bun);
+      return v == null
+        ? `<option value="" disabled>${e(pf)}（別途見積）</option>`
+        : `<option value="${v}">${e(pf)}　${v.toLocaleString()}円</option>`;
+    }).join('');
+    selHtml = `<div style="margin-top:14px">
+      <label class="sr-label">都道府県から入れる（${e(lk.label)} × ${bun}束・税抜）</label>
+      <select class="sr-sel" id="soryo-pref" onchange="onSoryoPref(this)">
+        <option value="">選択してください…</option>${opts}
+      </select></div>`;
+  }
+  body.innerHTML = `
+    <div class="sr-row">
+      <b>${e(fullName(cust) || cust || '(取引先未入力)')}</b>${car ? `　🚚${e(car)}` : ''}<br>
+      ${e(HINMEI_NAME[it.hinmei] || it.hinmei || '')} ${e(getVal(it, 'grade'))}　${e(dim)}　<b>${bun || '-'}束</b>
+      ${lk && lk.note ? `<br><span style="color:#e65100;font-size:12px">${e(lk.note)}</span>` : ''}
+    </div>
+    <label class="sr-label">送料（税抜・円）</label>
+    <input class="sr-input" id="soryo-input" type="number" step="1" inputmode="numeric" placeholder="0"
+           value="${e(val || '')}" oninput="onSoryoInput()">
+    <div class="sr-res na" id="soryo-result"></div>
+    ${selHtml}
+    ${otherSum > 0 ? `<div class="sr-warn">⚠️ この取引先の他の行にも送料が入っています（${otherSum.toLocaleString()}円）。<br>納品書には合算して入るので、1枚につき1行だけに設定してください。</div>` : ''}
+    <div class="sr-btns">
+      <button class="sr-ok" onclick="soryoSave()">この送料で登録</button>
+      <button class="sr-clear" onclick="soryoClear()">送料なし</button>
+      <button class="sr-cancel" onclick="closeSoryoModal()">キャンセル</button>
+    </div>`;
+  onSoryoInput();
+  const inp = document.getElementById('soryo-input');
+  if (inp) { inp.focus(); try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e2) {} }
+}
+function soryoInputYen() {
+  const el = document.getElementById('soryo-input');
+  if (!el) return null;
+  const raw = String(el.value || '').replace(/[,，円\s]/g, '');
+  if (raw === '') return null;
+  const n = parseFloat(raw);
+  return isNaN(n) ? NaN : n;
+}
+// 入力のたびに「この金額はどの都道府県の運賃か」を照合して出す
+function onSoryoInput() {
+  const box = document.getElementById('soryo-result');
+  const it = allItems.find(i => itemKey(i) === soryoKey);
+  if (!box || !it) return;
+  const lk = soryoLenKey(getVal(it, 'length'));
+  const bun = soryoBun(it);
+  const yen = soryoInputYen();
+  const set = (cls, html) => { box.className = 'sr-res ' + cls; box.innerHTML = html; };
+  if (yen == null) { set('na', '金額を入れると、長さ・束数から該当する都道府県を自動で調べます。'); return; }
+  if (isNaN(yen) || yen <= 0) { set('ng', '金額は正の数字で入力してください。'); return; }
+  if (!soryoTable) { set('na', soryoTableErr ? '運賃表を読み込めませんでした（手入力の金額でそのまま登録できます）。' : '運賃表を読み込み中…'); return; }
+  if (!lk) { set('na', 'この長さは運賃表（西濃 2m/3m/4m）の対象外です。手入力の金額で登録します。'); return; }
+  if (!bun) { set('na', '束数（予定/実際）が入っていないため照合できません。手入力の金額で登録します。'); return; }
+  const hits = soryoMatchPrefs(lk.k, bun, yen);
+  if (hits.length) set('ok', `この金額は【${hits.join('・')}】　${lk.label} × ${bun}束 の送料です`);
+  else set('ng', `${lk.label} × ${bun}束 の運賃表に一致する都道府県がありません（手入力扱いで登録できます）`);
+}
+function onSoryoPref(sel) {
+  const el = document.getElementById('soryo-input');
+  if (!el || !sel.value) return;
+  el.value = sel.value;
+  onSoryoInput();
+}
+function soryoClear() {
+  if (!soryoKey) return;
+  saveField(soryoKey, 'soryo', '');
+  closeSoryoModal();
+}
+function soryoSave() {
+  const key = soryoKey;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  const yen = soryoInputYen();
+  if (yen == null) { soryoClear(); return; }                       // 空 = 解除
+  if (isNaN(yen) || yen <= 0) { alert('送料は正の数字で入力してください'); return; }
+  const lk = soryoLenKey(getVal(it, 'length'));
+  const bun = soryoBun(it);
+  const hits = (soryoTable && lk && bun) ? soryoMatchPrefs(lk.k, bun, yen) : [];
+  const head = (fullName((getVal(it, 'customer') || '').trim()) || getVal(it, 'customer') || '') + '\n';
+  const amt = yen.toLocaleString() + '円（税抜）';
+  let msg;
+  if (hits.length) {
+    msg = `${head}\n【${hits.join('・')}】\n${lk.label} × ${bun}束 ＝ ${amt}\n\nこの都道府県・この数量でよろしいですか？\n（OKで納品書の運賃に自動で入ります）`;
+  } else if (soryoTable && lk && bun) {
+    msg = `${head}\n${lk.label} × ${bun}束 で運賃表に一致する都道府県がありませんでした。\n\n手入力の ${amt} で登録しますか？`;
+  } else {
+    msg = `${head}\n送料 ${amt} で登録しますか？\n（この行は運賃表で照合できないため手入力扱いです）`;
+  }
+  if (!confirm(msg)) return;
+  saveField(key, 'soryo', String(yen));
+  closeSoryoModal();
+}
+
 function rowMenuDelete() {
   const key = rowMenuKey;
   const it = allItems.find(i => itemKey(i) === key);
@@ -2020,9 +2224,11 @@ function showNouhinModal(){
       const noteBadge = hasNote? ' <span style="background:#f57f17;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">⚠️忘れちゃいけないメモあり</span>':'';
       const hasTokka = en.rows.some(it=>String(it.tokka||'').trim());
       const tokkaBadge = hasTokka? ' <span style="background:#2e7d32;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">💴特価あり</span>':'';
+      const soryoSum = en.rows.reduce((a,it)=>{ const v=parseFloat(String(it.soryo||'').replace(/,/g,'')); return a + (isNaN(v)?0:v); },0);
+      const soryoBadge = soryoSum>0? ' <span style="background:#1565c0;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">🚚送料'+soryoSum.toLocaleString()+'円</span>':'';
       const carBadge = en.label? ' <span style="background:#6a1b9a;color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;font-weight:bold">🚚'+e(en.label)+'</span>':'';
       html+=`<tr style="cursor:pointer" data-i="${i}">
-        <td class="cust">${e(fullName(k))}${carBadge}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}${tokkaBadge}</td>
+        <td class="cust">${e(fullName(k))}${carBadge}${unmapped?' <span style="color:#e65100;font-size:11px">(要確認:'+e(k)+')</span>':''}${noteBadge}${tokkaBadge}${soryoBadge}</td>
         <td style="text-align:center">${en.rows.length}</td>
         <td style="text-align:right"><span style="color:#1a73e8;font-weight:700">作成 ▶</span></td></tr>`;
     });
@@ -2057,6 +2263,9 @@ function buildNouhin(en){
   const CARRIER_FULL = {'内藤':'内藤運輸','西濃':'西濃運輸','佐川':'佐川急便'};
   const carRaw = rows.map(it=>String(it.carrier||'').trim()).find(v=>v) || '';
   if (carRaw) data.carrier = CARRIER_FULL[carRaw] || carRaw;
+  // ⋯メニューの送料設定 → 納品書の「運賃(税抜)」へ。複数行にあれば合算
+  const freight = rows.reduce((a,it)=>{ const v=num(it.soryo); return a + ((v!=null&&v>0)?v:0); },0);
+  if (freight>0) data.freight = freight;
   // Firebaseキーも渡す（納品書の確定でこの分を出荷完了化できるように）
   data.keys = rows.map(it=> itemKey(it).replace(/[.#$/\[\]]/g,'_'));
   // 「⋯」メニューで登録した「忘れちゃいけないメモ」も渡す（納品書側でポップアップ表示、重複除去）
