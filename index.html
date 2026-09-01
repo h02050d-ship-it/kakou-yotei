@@ -256,6 +256,19 @@
   .sr-ok { background: #1565c0; color: #fff; }
   .sr-clear { background: #fff; color: #c62828; border: 1px solid #ef9a9a !important; flex: 0 0 auto !important; padding: 11px 14px !important; }
   .sr-cancel { background: #eceff1; color: #455a64; flex: 0 0 auto !important; padding: 11px 14px !important; }
+  /* 予定を入れた直後に出る一括設定ポップアップ */
+  .st-note { font-size: 13px; color: #2e7d32; font-weight: 700; margin: 0 0 10px; line-height: 1.5; }
+  .st-item { border: 1px solid #e0e0e0; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+  .st-name { display: block; font-size: 14px; font-weight: 700; color: #37474f; margin-bottom: 7px; }
+  .st-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .st-chip { padding: 7px 14px; font-size: 14px; font-weight: 700; border: 1px solid #b0bec5; background: #fff; color: #546e7a; border-radius: 999px; cursor: pointer; }
+  .st-chip.on { background: #2e7d32; border-color: #2e7d32; color: #fff; }
+  .st-chip.on.off { background: #90a4ae; border-color: #90a4ae; }
+  .st-date { padding: 7px 9px; font-size: 14px; border: 1px solid #b0bec5; border-radius: 8px; }
+  .st-why { font-size: 12px; color: #78909c; line-height: 1.5; margin-top: 7px; }
+  .st-ok { background: #2e7d32 !important; }
+  .rowmenu-pop button.rm-setup { color: #2e7d32; }
+  .rowmenu-pop button.rm-setup:hover { background: #e8f5e9; }
   .rowmenu-pop button.rm-note { color: #f57f17; }
   .rowmenu-pop button.rm-note:hover { background: #fff8e1; }
   .rowmenu-pop {
@@ -479,6 +492,12 @@
     <div class="sr-body" id="soryoModalBody"></div>
   </div>
 </div>
+<div class="modal-overlay" id="setupModal" onclick="if(event.target===this)closeSetupModal()">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head" style="background:#2e7d32">📋 この内容で登録しますか？<button class="modal-close" onclick="closeSetupModal()">&times;</button></div>
+    <div class="sr-body" id="setupModalBody"></div>
+  </div>
+</div>
 <div class="modal-overlay" id="calcModal" onclick="if(event.target===this)closeCalcModal()">
   <div class="modal">
     <div class="modal-head">予想加工時間の計算方法<button class="modal-close" onclick="closeCalcModal()">&times;</button></div>
@@ -540,7 +559,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -646,7 +665,7 @@ function getColOrder() { return colOrder; }
 
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B特上小'];
-const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#8e24aa','無節':'#1565c0','無節特上':'#6a1b9a','生節':'#795548'};
+const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#8e24aa','無節':'#1565c0','無節特上':'#6a1b9a','生節':'#795548','B丸節':'#d32f2f','B特上小':'#8e24aa'};
 const carrierColors = {'西濃':'#e65100','佐川':'#1565c0','内藤':'#6a1b9a','自社':'#d32f2f','引取':'#f9a825'};
 // 長さ→入数の選択肢（先頭がデフォルト）。該当する長さでは他の選択肢を出さない（＋その他）。
 const QTY_BY_LENGTH = {'910':['20','40'],'1820':['10'],'2000':['8'],'3000':['10'],'4000':['8'],'300':['2','10']};
@@ -1617,6 +1636,7 @@ function onGenSelChange(el) {
       autoZaikoForB(key, field, v.trim());
       if (field === 'length') onLengthSet(key, v.trim());
       if (field === 'carrier') naitoShkRemind(v.trim());
+      if (field === 'planned') maybeOpenSetup(key, v.trim());
     }
   } else {
     if (!editGuard(key, field, el.value)) { render(); return; }
@@ -1628,6 +1648,7 @@ function onGenSelChange(el) {
     autoZaikoForB(key, field, el.value);
     if (field === 'length') onLengthSet(key, el.value);
     if (field === 'carrier') naitoShkRemind(el.value);
+    if (field === 'planned') maybeOpenSetup(key, el.value);
     // 実際が予定と同数になったら製造順を9にして完了へ移動
     if (field === 'actual') {
       const it = allItems.find(i => itemKey(i) === key);
@@ -1853,6 +1874,7 @@ function openRowMenu(btn, key, ev) {
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
+    `<button class="rm-setup" onclick="rowMenuSetup()">📋 シール・配送・出荷日</button>` +
     `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
@@ -2082,6 +2104,190 @@ function onAddRow() {
   };
   db.ref('items/' + uid).set(newRow);
 }
+
+// ===== 予定数量を入れた直後の一括設定（シール・段ボール・配送・出荷日）=====
+// 「予定」に束数を入れた時点で、シール・段ボール表と同じ取引先の過去の行から
+// 「この取引先ならこう」を予想して確認ポップアップを出す。根拠も一緒に出し、
+// ちがうところはその場で押して直してから登録できる。
+let sealMaster = null;
+function loadSealMaster() {
+  if (sealMaster) return Promise.resolve(sealMaster);
+  return db.ref('sealList').once('value')
+    .then(s => { sealMaster = Object.values(s.val() || {}); return sealMaster; })
+    .catch(() => { sealMaster = []; return sealMaster; });
+}
+function normJ(s) { return String(s == null ? '' : s).replace(/[\s　]/g, ''); }
+// シール・段ボール表の行を取引先名から引く。表の名前は「ナイス 沼津」「丸宇 大栄浜」のように
+// スペース区切りなので、単語が全部（略称＋正式名称）に含まれる行のうち一番長い名前を採用する。
+function sealMasterFor(cust) {
+  if (!sealMaster || !sealMaster.length) return null;
+  const hay = normJ(cust) + normJ(fullName(cust));
+  if (!hay) return null;
+  let best = null, bestLen = -1;
+  sealMaster.forEach(r => {
+    const toks = String(r.name || '').split(/[\s　]+/).filter(Boolean);
+    if (!toks.length || !toks.every(t => hay.includes(t))) return;
+    const len = normJ(r.name).length;
+    if (len > bestLen) { bestLen = len; best = r; }
+  });
+  return best;
+}
+// 同じ取引先の過去の行（出荷完了ぶんも含む＝これが「過去の事例」）
+function setupHist(it) {
+  const c = normJ(getVal(it, 'customer'));
+  if (!c) return [];
+  return allItems.filter(o => o !== it && normJ(o.customer) === c);
+}
+// シル/段ボの予想。シール・段ボール表があればそちらが正。
+// （新規行の初期値が「無」なので、実績の「無」の数はアテにならない）
+function guessMark(it, field) {
+  if (String(getVal(it, field)) === '有') return { val: '有', why: 'すでに「有」が入っています' };
+  const m = sealMasterFor(getVal(it, 'customer'));
+  if (m) return { val: (field === 'seal' ? m.seal : m.danball) ? '有' : '無', why: 'シール・段ボール表の「' + m.name + '」より' };
+  const rows = setupHist(it);
+  if (rows.length) {
+    const yes = rows.filter(o => String(o[field] || '') === '有').length;
+    return { val: (yes * 2 >= rows.length) ? '有' : '無', why: 'この取引先の過去' + rows.length + '件中' + yes + '件が「有」' };
+  }
+  return { val: '無', why: '過去の事例なし（初期値の「無」）' };
+}
+function guessCarrier(it) {
+  const now = String(getVal(it, 'carrier') || '').trim();
+  if (now && now !== '-') return { val: now, why: 'すでに入っています' };
+  const cust = String(getVal(it, 'customer'));
+  const len = String(getVal(it, 'length'));
+  if (/ネット|楽天|ヤフ/.test(cust)) {
+    const c = len === '910' ? '佐川' : (['1820','3000','4000'].includes(len) ? '西濃' : '');
+    if (c) return { val: c, why: 'EC（' + len + 'mm）の自動ルール' };
+  }
+  const cnt = {};
+  setupHist(it).forEach(o => { const v = String(o.carrier || '').trim(); if (v && v !== '-') cnt[v] = (cnt[v] || 0) + 1; });
+  const list = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
+  if (list.length) {
+    const tot = list.reduce((a, b) => a + b[1], 0);
+    return { val: list[0][0], why: 'この取引先の過去' + tot + '件中' + list[0][1] + '件が「' + list[0][0] + '」' };
+  }
+  return { val: '', why: '過去の事例なし' };
+}
+// 出荷日は過去データがほとんど無いので日付そのものの予想はしない。
+// 同じ取引先の作業中の行に日付が入っていれば同じ便にまとまるので、その日を出す。
+function guessDue(it) {
+  const cur = String(getVal(it, 'due') || '').trim();
+  if (cur) return { val: cur.split(',')[0], why: 'すでに入っています' };
+  const c = normJ(getVal(it, 'customer'));
+  let best = null;
+  allItems.forEach(o => {
+    if (o === it || o.archived === '1' || normJ(o.customer) !== c) return;
+    String(o.due || '').split(',').filter(Boolean).forEach(d => {
+      const n = dueOffsetDays(d);
+      if (n === null || n < 0) return;
+      if (!best || n < best.n) best = { n: n, d: d };
+    });
+  });
+  if (best) return { val: best.d, why: '同じ取引先の作業中の行と同じ出荷日（' + dueLabel(best.d) + '）' };
+  return { val: '', why: '過去の出荷日データが少ないため予想なし' };
+}
+
+let setupKey = null, setupDraft = null, setupWhy = null;
+function isoAfter(days) {
+  const d = new Date(); d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// 予定に束数が入ったとき。1行につき1回だけ自動で出す（あとは行メニューから開ける）
+function maybeOpenSetup(key, val) {
+  const n = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
+  if (isNaN(n) || n < 1) return;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it || it.archived === '1' || it.setup_done === '1' || isConfirmState(it)) return;
+  setTimeout(() => openSetupModal(key), 120);
+}
+function closeSetupModal() {
+  document.getElementById('setupModal').classList.remove('show');
+  setupKey = null; setupDraft = null; setupWhy = null;
+}
+function openSetupModal(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  setupKey = key;
+  document.getElementById('setupModal').classList.add('show');
+  document.getElementById('setupModalBody').innerHTML =
+    '<div style="padding:24px;text-align:center;color:#888">過去の事例を調べています…</div>';
+  loadSealMaster().then(() => {
+    if (setupKey !== key) return;                       // 読込中に閉じられた
+    const cur = allItems.find(i => itemKey(i) === key);
+    if (!cur) return;
+    const gs = guessMark(cur, 'seal'), gd = guessMark(cur, 'danball');
+    const gc = guessCarrier(cur), gu = guessDue(cur);
+    setupDraft = { seal: gs.val, danball: gd.val, carrier: gc.val, due: gu.val };
+    setupWhy = { seal: gs.why, danball: gd.why, carrier: gc.why, due: gu.why };
+    renderSetupBody();
+  });
+}
+function setupSet(f, v) { if (!setupDraft) return; setupDraft[f] = v; renderSetupBody(); }
+function renderSetupBody() {
+  const it = allItems.find(i => itemKey(i) === setupKey);
+  const body = document.getElementById('setupModalBody');
+  if (!it || !body || !setupDraft) return;
+  const e = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const dim = [getVal(it, 'thickness'), getVal(it, 'width'), getVal(it, 'length')].filter(Boolean).join('×');
+  const cust = (getVal(it, 'customer') || '').trim();
+  const mark = (f, label) => {
+    const on = setupDraft[f] === '有';
+    return '<div class="st-item"><span class="st-name">' + label + '</span>' +
+      '<div class="st-chips">' +
+      '<button class="st-chip ' + (on ? 'on' : '') + '" onclick="setupSet(\'' + f + '\',\'有\')">有</button>' +
+      '<button class="st-chip ' + (on ? '' : 'on off') + '" onclick="setupSet(\'' + f + '\',\'無\')">無</button>' +
+      '</div><div class="st-why">' + e(setupWhy[f]) + '</div></div>';
+  };
+  const carChips = ['内藤', '西濃', '佐川', '自社', '引取'].map(c => {
+    const on = setupDraft.carrier === c;
+    const col = carrierColors[c] || '#2e7d32';
+    return '<button class="st-chip ' + (on ? 'on' : '') + '"' +
+      (on ? ' style="background:' + col + ';border-color:' + col + ';color:#fff"' : '') +
+      ' onclick="setupSet(\'carrier\',\'' + c + '\')">' + c + '</button>';
+  }).join('') + '<button class="st-chip ' + (setupDraft.carrier ? '' : 'on off') + '" onclick="setupSet(\'carrier\',\'\')">なし</button>';
+  const dueChips = [['本日', 0], ['明日', 1], ['明後日', 2]].map(p => {
+    const iso = isoAfter(p[1]), on = setupDraft.due === iso;
+    return '<button class="st-chip ' + (on ? 'on' : '') + '" onclick="setupSet(\'due\',\'' + iso + '\')">' + p[0] + '</button>';
+  }).join('')
+    + '<input type="date" class="st-date" value="' + e(setupDraft.due) + '" onchange="setupSet(\'due\',this.value)">'
+    + '<button class="st-chip ' + (setupDraft.due ? '' : 'on off') + '" onclick="setupSet(\'due\',\'\')">なし</button>';
+  body.innerHTML =
+    '<div class="sr-row"><b>' + e(fullName(cust) || cust || '(取引先未入力)') + '</b><br>' +
+    e(HINMEI_NAME[it.hinmei] || it.hinmei || '') + ' ' + e(getVal(it, 'grade')) + '　' + e(dim) +
+    '　予定 <b>' + e(getVal(it, 'planned')) + '束</b></div>' +
+    '<div class="st-note">過去の事例からの予想です。ちがうところは押して直してください。</div>' +
+    mark('seal', '① シール') +
+    mark('danball', '② 段ボール') +
+    '<div class="st-item"><span class="st-name">③ 配送</span>' +
+    '<div class="st-chips">' + carChips + '</div><div class="st-why">' + e(setupWhy.carrier) + '</div></div>' +
+    '<div class="st-item"><span class="st-name">④ 出荷日</span>' +
+    '<div class="st-chips">' + dueChips + '</div><div class="st-why">' + e(setupWhy.due) + '</div></div>' +
+    '<div class="sr-btns">' +
+    '<button class="sr-ok st-ok" onclick="setupSave()">この内容で登録</button>' +
+    '<button class="sr-cancel" onclick="setupSkip()">あとで</button></div>';
+}
+function setupSave() {
+  const key = setupKey, d = setupDraft;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it || !d) { closeSetupModal(); return; }
+  [['seal', d.seal || '無'], ['danball', d.danball || '無'], ['carrier', d.carrier], ['due', d.due]].forEach(p => {
+    if (String(getVal(it, p[0])) === String(p[1])) return;
+    if (!editGuard(key, p[0], p[1])) return;
+    saveField(key, p[0], p[1]);
+  });
+  it.setup_done = '1'; saveItem(it);
+  naitoShkRemind(d.carrier);
+  closeSetupModal();
+  render();
+}
+// 「あとで」= 何も書き換えず、この行では自動で出さないようにするだけ（行メニューから開ける）
+function setupSkip() {
+  const it = allItems.find(i => itemKey(i) === setupKey);
+  if (it) { it.setup_done = '1'; saveItem(it); }
+  closeSetupModal();
+}
+function rowMenuSetup() { const key = rowMenuKey; closeRowMenu(); openSetupModal(key); }
 
 // シール・段ボール確認表モーダル
 function showSealModal() {
