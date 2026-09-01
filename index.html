@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>加工予定表</title>
+<!-- 起動高速化: 接続先(Firebase/GAS)へのDNS/TLSを描画前に済ませておく -->
+<link rel="preconnect" href="https://kakou-yotei-default-rtdb.firebaseio.com" crossorigin>
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.google.com">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%231a73e8'/><text x='50' y='50' font-size='72' font-weight='bold' text-anchor='middle' dominant-baseline='central' fill='white' font-family='sans-serif'>加</text></svg>">
 <style>
   :root { --bg: #f0f2f5; --text: #222; --text-sub: #888; --accent: #1a73e8; }
@@ -548,6 +554,11 @@ let colOrder = DEFAULT_COLS.slice();
 let showArchive = false;
 let showCalcCols = localStorage.getItem('show_calc_cols') === '1';
 
+// 起動高速化: 前回表示データのキャッシュ（Firebase受信前の即表示用）。
+// liveLoaded=false の間はキャッシュ表示のみで、保存(saveItem)は不可＝古いデータでの上書き事故を防ぐ
+let liveLoaded = false;
+const SRV_CACHE_KEY = 'kakou_srv_cache_v1';
+
 function itemKey(it) {
   if (!it._uid) it._uid = it._uid || `${it._row}_${it.customer}_${it.hinmei}_${it.grade}_${it.thickness}_${it.length}`;
   return it._uid;
@@ -556,6 +567,8 @@ function getVal(it, field) { return it[field] || ''; }
 
 // Save single item to Firebase
 function saveItem(it) {
+  // キャッシュ表示中（サーバー未受信）の保存は、古いデータで上書きしてしまうため受け付けない
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); return; }
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
@@ -579,10 +592,12 @@ function saveRowOrder(order) { db.ref('settings/rowOrder').set(order); }
 // Load all data from Firebase and listen for changes
 function loadData() {
   const main = document.getElementById('mainArea');
-  main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
+  // キャッシュ表示済みならスピナーで消さない（裏で最新受信→自動で差し替わる）
+  if (!allItems.length) main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
 
   // Listen for real-time changes
   db.ref('items').on('value', snap => {
+    liveLoaded = true;   // サーバーの実データ受信＝以後は保存OK
     const data = snap.val() || {};
     allItems = Object.values(data).map(it => {
       it._uid = it._uid || Object.keys(data).find(k => data[k] === it);
@@ -641,6 +656,8 @@ function loadData() {
       syncToSheet();
       document.getElementById('lastUpdated').textContent =
         new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
+      // 起動高速化: 次回起動の即表示用に表示中データを保存
+      try { localStorage.setItem(SRV_CACHE_KEY, JSON.stringify({ t: Date.now(), items: allItems, colOrder: colOrder })); } catch (e) {}
     });
   });
 
@@ -2695,6 +2712,22 @@ function syncToSheet() {
     }).catch(e => console.log('sync error:', e));
   }, 2000);
 }
+
+// 起動高速化: 前回データを即表示（Firebase認証・受信を待たない。受信後に最新へ自動で差し替え）
+(function bootFromCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(SRV_CACHE_KEY) || 'null');
+    if (c && Array.isArray(c.items) && c.items.length) {
+      allItems = c.items;
+      // 列並びもキャッシュから復元（列の増減があった場合は既定の並びに戻す）
+      if (Array.isArray(c.colOrder) && DEFAULT_COLS.every(col => c.colOrder.includes(col))) {
+        colOrder = c.colOrder.filter(col => DEFAULT_COLS.includes(col));
+      }
+      render();
+      document.getElementById('lastUpdated').textContent = '前回データ表示中（同期中…）';
+    }
+  } catch (e) {}
+})();
 
 firebase.auth().onAuthStateChanged(user => {
   if (user) loadData();
