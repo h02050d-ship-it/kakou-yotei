@@ -1515,7 +1515,7 @@ function autoCarrier(key) {
   if (!it || !/ネット|楽天|ヤフ/.test(String(getVal(it,'customer')))) return;
   const len = String(getVal(it,'length'));
   const carrier = len === '910' ? '佐川' : (['1820','3000','4000'].includes(len) ? '西濃' : '');
-  if (carrier && getVal(it,'carrier') !== carrier) saveField(key, 'carrier', carrier);
+  if (carrier && getVal(it,'carrier') !== carrier) { saveField(key, 'carrier', carrier); seinoNoSeal(key, carrier); }
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 // シル「シ」・段ボ「段」のトグル表示。ON=有で表示、OFF=無で空
@@ -1652,7 +1652,7 @@ function onGenSelChange(el) {
       saveField(key, field, v.trim());
       autoZaikoForB(key, field, v.trim());
       if (field === 'length') onLengthSet(key, v.trim());
-      if (field === 'carrier') naitoShkRemind(v.trim());
+      if (field === 'carrier') { naitoShkRemind(v.trim()); seinoNoSeal(key, v.trim()); }
       if (field === 'planned') maybeOpenSetup(key, v.trim());
     }
   } else {
@@ -1664,7 +1664,7 @@ function onGenSelChange(el) {
     saveField(key, field, el.value);
     autoZaikoForB(key, field, el.value);
     if (field === 'length') onLengthSet(key, el.value);
-    if (field === 'carrier') naitoShkRemind(el.value);
+    if (field === 'carrier') { naitoShkRemind(el.value); seinoNoSeal(key, el.value); }
     if (field === 'planned') maybeOpenSetup(key, el.value);
     // 実際が予定と同数になったら製造順を9にして完了へ移動
     if (field === 'actual') {
@@ -1728,6 +1728,13 @@ function toastShipOk() {
 }
 // 配送で「内藤」を選んだら出荷依頼を促すポップアップ。
 // 複数行まとめて入力するケースがあるため、一度表示したら10分間は再表示しない（端末ごと・localStorage）
+// 西濃はシールを貼らない（西濃便＝シールなし）
+function isSeino(val) { return String(val || '').replace(/[\s　]/g, '') === '西濃'; }
+function seinoNoSeal(key, val) {
+  if (!isSeino(val)) return;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (it && String(getVal(it, 'seal')) === '有') saveField(key, 'seal', '無');
+}
 function naitoShkRemind(val) {
   if (String(val || '').replace(/[\s　]/g, '') !== '内藤') return;
   const KEY = 'naito_shk_remind_at', SUPPRESS_MS = 10 * 60 * 1000;
@@ -2157,7 +2164,11 @@ function setupHist(it) {
 }
 // シル/段ボの予想。シール・段ボール表があればそちらが正。
 // （新規行の初期値が「無」なので、実績の「無」の数はアテにならない）
-function guessMark(it, field) {
+// carrier を渡すと配送業者のルール（西濃＝シールなし）を優先する
+function guessMark(it, field, carrier) {
+  if (field === 'seal' && isSeino(carrier === undefined ? getVal(it, 'carrier') : carrier)) {
+    return { val: '無', why: '西濃はシールなし' };
+  }
   if (String(getVal(it, field)) === '有') return { val: '有', why: 'すでに「有」が入っています' };
   const m = sealMasterFor(getVal(it, 'customer'));
   if (m) return { val: (field === 'seal' ? m.seal : m.danball) ? '有' : '無', why: 'シール・段ボール表の「' + m.name + '」より' };
@@ -2233,14 +2244,27 @@ function openSetupModal(key) {
     if (setupKey !== key) return;                       // 読込中に閉じられた
     const cur = allItems.find(i => itemKey(i) === key);
     if (!cur) return;
-    const gs = guessMark(cur, 'seal'), gd = guessMark(cur, 'danball');
     const gc = guessCarrier(cur), gu = guessDue(cur);
+    const gs = guessMark(cur, 'seal', gc.val), gd = guessMark(cur, 'danball');
     setupDraft = { seal: gs.val, danball: gd.val, carrier: gc.val, due: gu.val };
     setupWhy = { seal: gs.why, danball: gd.why, carrier: gc.why, due: gu.why };
     renderSetupBody();
   });
 }
-function setupSet(f, v) { if (!setupDraft) return; setupDraft[f] = v; renderSetupBody(); }
+const SEAL_SEINO_WHY = '西濃はシールなし';
+function setupSet(f, v) {
+  if (!setupDraft) return;
+  setupDraft[f] = v;
+  if (f === 'carrier') {
+    if (isSeino(v)) { setupDraft.seal = '無'; setupWhy.seal = SEAL_SEINO_WHY; }
+    else if (setupWhy.seal === SEAL_SEINO_WHY) {        // 西濃を外したら予想し直す
+      const it = allItems.find(i => itemKey(i) === setupKey);
+      const g = it ? guessMark(it, 'seal', v) : { val: '無', why: '' };
+      setupDraft.seal = g.val; setupWhy.seal = g.why;
+    }
+  }
+  renderSetupBody();
+}
 function renderSetupBody() {
   const it = allItems.find(i => itemKey(i) === setupKey);
   const body = document.getElementById('setupModalBody');
@@ -2284,16 +2308,25 @@ function renderSetupBody() {
     '<button class="sr-ok st-ok" onclick="setupSave()">この内容で登録</button>' +
     '<button class="sr-cancel" onclick="setupSkip()">あとで</button></div>';
 }
+// ⚠️ 1項目ずつ saveField してはいけない。saveField→saveItem の set() で Firebase の
+// value リスナーが同期的に走り allItems が新しいオブジェクトに差し替わるため、
+// 古い参照に対する最後の saveItem が後半の項目（配送・出荷日）を消してしまう。
+// → 変更内容をまとめてから、最新の行オブジェクトに一括で載せて1回だけ保存する。
 function setupSave() {
   const key = setupKey, d = setupDraft;
-  const it = allItems.find(i => itemKey(i) === key);
-  if (!it || !d) { closeSetupModal(); return; }
-  [['seal', d.seal || '無'], ['danball', d.danball || '無'], ['carrier', d.carrier], ['due', d.due]].forEach(p => {
-    if (String(getVal(it, p[0])) === String(p[1])) return;
-    if (!editGuard(key, p[0], p[1])) return;
-    saveField(key, p[0], p[1]);
+  const cur = allItems.find(i => itemKey(i) === key);
+  if (!cur || !d) { closeSetupModal(); return; }
+  const changes = [];
+  [['seal', d.seal || '無'], ['danball', d.danball || '無'], ['carrier', d.carrier || ''], ['due', d.due || '']].forEach(p => {
+    if (String(getVal(cur, p[0])) === String(p[1])) return;
+    if (!editGuard(key, p[0], p[1])) return;   // editGuard も saveItem する場合がある
+    changes.push(p);
   });
-  it.setup_done = '1'; saveItem(it);
+  const it = allItems.find(i => itemKey(i) === key);   // 差し替わっている可能性があるので取り直す
+  if (!it) { closeSetupModal(); return; }
+  changes.forEach(p => { it[p[0]] = p[1]; });
+  it.setup_done = '1';
+  saveItem(it);
   naitoShkRemind(d.carrier);
   closeSetupModal();
   render();
