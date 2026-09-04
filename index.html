@@ -620,6 +620,12 @@ function loadData() {
         }
       }
       if (String(it.grade || '').includes('B') && it.zaiko !== '1') { it.zaiko = '1'; dirty = true; }
+      // オオツカの特上小・無節はテープ青。既存行にも自動で備考を付ける（出荷完了は対象外）
+      if (it.archived !== '1' && TAPE_CUST.test(String(it.customer || '')) && TAPE_GRADE.test(String(it.grade || ''))
+          && !String(it.remark || '').includes(TAPE_NOTE)) {
+        it.remark = String(it.remark || '') ? String(it.remark) + ' ' + TAPE_NOTE : TAPE_NOTE;
+        dirty = true;
+      }
       if (/ネット|楽天|ヤフ/.test(String(it.customer || ''))) {
         const m = String(it.remark || '').match(/西濃|佐川/);
         if (m) {
@@ -1501,7 +1507,7 @@ function editGuard(key, field, newVal) {
 function onCellEdit(el) {
   if (!editGuard(el.dataset.key, el.dataset.field, el.textContent.trim())) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
-  if (el.dataset.field === 'customer') autoCarrier(el.dataset.key);
+  if (el.dataset.field === 'customer') { autoCarrier(el.dataset.key); autoTapeNote(el.dataset.key, 'customer'); }
 }
 // 長さ設定時: 入数をその長さのデフォルト（先頭）に自動切替＋配送業者の自動選択
 function onLengthSet(key, val) {
@@ -1516,6 +1522,28 @@ function autoCarrier(key) {
   const len = String(getVal(it,'length'));
   const carrier = len === '910' ? '佐川' : (['1820','3000','4000'].includes(len) ? '西濃' : '');
   if (carrier && getVal(it,'carrier') !== carrier) { saveField(key, 'carrier', carrier); seinoNoSeal(key, carrier); }
+}
+// オオツカの特上小・無節はテープを青に変える（2026-09-04 オオツカ依頼）→ 備考へ自動記載
+const TAPE_NOTE = 'テープ青';
+const TAPE_CUST = /オオツカ|オーツカ|大塚/;
+const TAPE_GRADE = /特上小|無節/;
+// 条件を満たせば備考に「テープ青」を足し、条件から外れたら消す。戻り値＝備考を書き換えたか
+function applyTapeNote(it) {
+  if (!it) return false;
+  const cur = String(it.remark || '');
+  const has = cur.includes(TAPE_NOTE);
+  const need = TAPE_CUST.test(String(it.customer || '')) && TAPE_GRADE.test(String(it.grade || ''));
+  if (need === has) return false;
+  it.remark = need
+    ? (cur ? cur + ' ' + TAPE_NOTE : TAPE_NOTE)
+    : cur.split(TAPE_NOTE).join('').replace(/\s+/g, ' ').trim();
+  return true;
+}
+// 取引先・等級を変えた直後に呼ぶ（他の列の変更では動かさない）
+function autoTapeNote(key, field) {
+  if (field && field !== 'grade' && field !== 'customer') return;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (applyTapeNote(it)) saveItem(it);
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 // シル「シ」・段ボ「段」のトグル表示。ON=有で表示、OFF=無で空
@@ -1651,6 +1679,7 @@ function onGenSelChange(el) {
       if (!editGuard(key, field, v.trim())) { render(); return; }
       saveField(key, field, v.trim());
       autoZaikoForB(key, field, v.trim());
+      autoTapeNote(key, field);
       if (field === 'length') onLengthSet(key, v.trim());
       if (field === 'carrier') { naitoShkRemind(v.trim()); seinoNoSeal(key, v.trim()); }
       if (field === 'planned') maybeOpenSetup(key, v.trim());
@@ -1663,6 +1692,7 @@ function onGenSelChange(el) {
     const prevActual = itPre ? String(getVal(itPre, 'actual') || '') : '';
     saveField(key, field, el.value);
     autoZaikoForB(key, field, el.value);
+    autoTapeNote(key, field);
     if (field === 'length') onLengthSet(key, el.value);
     if (field === 'carrier') { naitoShkRemind(el.value); seinoNoSeal(key, el.value); }
     if (field === 'planned') maybeOpenSetup(key, el.value);
