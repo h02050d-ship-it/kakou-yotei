@@ -591,6 +591,7 @@ function saveRowOrder(order) { db.ref('settings/rowOrder').set(order); }
 
 // Load all data from Firebase and listen for changes
 function loadData() {
+  loadLearn();   // 学習データ（settings/learn）の購読も認証後に開始
   const main = document.getElementById('mainArea');
   // キャッシュ表示済みならスピナーで消さない（裏で最新受信→自動で差し替わる）
   if (!allItems.length) main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
@@ -2203,7 +2204,12 @@ function setupHist(it) {
 // 次回の予想で最優先にする（ルールや過去件数より「人が直した値」が正）。
 // EC(ネット/楽天/ヤフ)は注文ごとに取引先名が変わるので「EC」でまとめ、配送・出荷日は長さ別(EC|910 など)に覚える。
 let learnData = {};
-db.ref('settings/learn').on('value', s => { learnData = s.val() || {}; });
+// 認証前に購読すると permission_denied で購読が切れたままになるため、loadData()（認証後）から呼ぶ
+let learnSubscribed = false;
+function loadLearn() {
+  if (learnSubscribed) return; learnSubscribed = true;
+  db.ref('settings/learn').on('value', s => { learnData = s.val() || {}; });
+}
 function learnCust(it) {
   const c = String(getVal(it, 'customer') || '');
   if (/ネット|楽天|ヤフ/.test(c)) return 'EC';
