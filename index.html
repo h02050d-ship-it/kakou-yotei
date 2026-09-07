@@ -1649,11 +1649,7 @@ function renderDuePop() {
   duePop.innerHTML = h;
 }
 function dueNav(d) { dueYm.m += d; if (dueYm.m < 0) { dueYm.m = 11; dueYm.y--; } if (dueYm.m > 11) { dueYm.m = 0; dueYm.y++; } renderDuePop(); }
-function dueSave() {
-  const it = allItems.find(i => itemKey(i) === dueKey);
-  if (it && dueSel.length === 1 && String(getVal(it, 'due') || '') !== dueSel[0]) learnPut(it, 'due', dueSel[0], '表で変更');
-  saveField(dueKey, 'due', dueSel.join(','));
-}
+function dueSave() { saveField(dueKey, 'due', dueSel.join(',')); }
 function dueMultiToggle(cb) { dueMulti = cb.checked; if (!dueMulti && dueSel.length > 1) { dueSel = [dueSel[0]]; dueSave(); } renderDuePop(); }
 function duePick(iso) {
   if (dueMulti) {
@@ -2200,7 +2196,7 @@ function setupHist(it) {
   return allItems.filter(o => o !== it && normJ(o.customer) === c);
 }
 // ===== 登録ダイアログの学習（Firebase settings/learn）=====
-// 人が「この内容で登録」で予想と違う値を選んだ・表で配送/シル/段ボ/出荷日を直した、を取引先ごとに覚え、
+// 人が「この内容で登録」で予想と違う値を選んだ・表で配送/シル/段ボを直した、を取引先ごとに覚え、（出荷日は不規則なので対象外）
 // 次回の予想で最優先にする（ルールや過去件数より「人が直した値」が正）。
 // EC(ネット/楽天/ヤフ)は注文ごとに取引先名が変わるので「EC」でまとめ、配送・出荷日は長さ別(EC|910 など)に覚える。
 let learnData = {};
@@ -2233,8 +2229,10 @@ function learnValLabel(field, val) {
   return val;
 }
 // 人が選んだ値を記録。同じ値なら回数を足し、違う値なら上書き（最後に人が選んだ値が正）
+// 出荷日は便のまとまり・在庫・お客の都合で不規則なので学習対象外（2026-09-07 本人指示）
+const LEARN_FIELDS = ['seal', 'danball', 'carrier'];
 function learnPut(it, field, val, how) {
-  if (!it) return;
+  if (!it || !LEARN_FIELDS.includes(field)) return;
   const keys = learnKeys(it, field); if (!keys.length) return;
   if (field === 'due') { const n = dueOffsetDays(String(val || '')); if (n === null || n < 0 || n > 14) return; val = String(n); }
   else val = String(val == null ? '' : val);
@@ -2328,9 +2326,7 @@ function guessDue(it) {
     });
   });
   if (best) return { val: best.d, why: '同じ取引先の作業中の行と同じ出荷日（' + dueLabel(best.d) + '）' };
-  const L = learnGet(it, 'due');
-  if (L) return { val: isoAfter(Number(L.val) || 0), why: learnWhy(L, 'due'), learn: L.key };
-  return { val: '', why: '過去の出荷日データが少ないため予想なし' };
+  return { val: '', why: '過去の出荷日データが少ないため予想なし（出荷日は不規則なので学習しません）' };
 }
 
 let setupKey = null, setupDraft = null, setupWhy = null, setupPred = null, setupLearn = null;
@@ -2450,9 +2446,8 @@ function setupSave() {
   saveItem(it);
   // 学習: 予想と違う値を人が選んだ→覚える。学習由来の予想をそのまま登録→確認回数を足す
   const pred = setupPred || {}, lrn = setupLearn || {};
-  ['seal', 'danball', 'carrier', 'due'].forEach(f => {
+  LEARN_FIELDS.forEach(f => {
     const v = d[f] || '';
-    if (f === 'due' && !v) return;
     if (String(v) !== String(pred[f] || '')) learnPut(it, f, v, 'ダイアログで変更');
     else if (lrn[f]) learnPut(it, f, v, '確認');
   });
