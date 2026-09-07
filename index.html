@@ -1648,7 +1648,11 @@ function renderDuePop() {
   duePop.innerHTML = h;
 }
 function dueNav(d) { dueYm.m += d; if (dueYm.m < 0) { dueYm.m = 11; dueYm.y--; } if (dueYm.m > 11) { dueYm.m = 0; dueYm.y++; } renderDuePop(); }
-function dueSave() { saveField(dueKey, 'due', dueSel.join(',')); }
+function dueSave() {
+  const it = allItems.find(i => itemKey(i) === dueKey);
+  if (it && dueSel.length === 1 && String(getVal(it, 'due') || '') !== dueSel[0]) learnPut(it, 'due', dueSel[0], '表で変更');
+  saveField(dueKey, 'due', dueSel.join(','));
+}
 function dueMultiToggle(cb) { dueMulti = cb.checked; if (!dueMulti && dueSel.length > 1) { dueSel = [dueSel[0]]; dueSave(); } renderDuePop(); }
 function duePick(iso) {
   if (dueMulti) {
@@ -1688,6 +1692,8 @@ function onGenSelChange(el) {
     if (!editGuard(key, field, el.value)) { render(); return; }
     // 変更前に確認状態だったかを控える（saveFieldで値が書き換わる前に判定）
     const itPre = allItems.find(i => itemKey(i) === key);
+    // 表で配送/シル/段ボを人が直した→学習（自動入力autoCarrier/seinoNoSealはここを通らないので覚えない）
+    if (itPre && (field === 'carrier' || field === 'seal' || field === 'danball') && String(getVal(itPre, field)) !== String(el.value)) learnPut(itPre, field, el.value, '表で変更');
     const wasConfirm = field === 'actual' && itPre && isConfirmState(itPre);
     const prevActual = itPre ? String(getVal(itPre, 'actual') || '') : '';
     saveField(key, field, el.value);
@@ -2192,10 +2198,78 @@ function setupHist(it) {
   if (!c) return [];
   return allItems.filter(o => o !== it && normJ(o.customer) === c);
 }
-// シル/段ボの予想。シール・段ボール表があればそちらが正。
+// ===== 登録ダイアログの学習（Firebase settings/learn）=====
+// 人が「この内容で登録」で予想と違う値を選んだ・表で配送/シル/段ボ/出荷日を直した、を取引先ごとに覚え、
+// 次回の予想で最優先にする（ルールや過去件数より「人が直した値」が正）。
+// EC(ネット/楽天/ヤフ)は注文ごとに取引先名が変わるので「EC」でまとめ、配送・出荷日は長さ別(EC|910 など)に覚える。
+let learnData = {};
+db.ref('settings/learn').on('value', s => { learnData = s.val() || {}; });
+function learnCust(it) {
+  const c = String(getVal(it, 'customer') || '');
+  if (/ネット|楽天|ヤフ/.test(c)) return 'EC';
+  return normJ(c).replace(/[.#$/\[\]]/g, '_');
+}
+// 引くときのキー候補（先頭ほど優先）。配送・出荷日は「取引先|長さ」→「取引先」の順
+function learnKeys(it, field) {
+  const c = learnCust(it); if (!c) return [];
+  if (field === 'carrier' || field === 'due') return [c + '|' + String(getVal(it, 'length') || ''), c];
+  return [c];
+}
+function learnGet(it, field) {
+  const tab = (learnData || {})[field] || {};
+  for (const k of learnKeys(it, field)) { const r = tab[k]; if (r && r.val !== undefined && r.val !== null) return Object.assign({ key: k }, r); }
+  return null;
+}
+const LEARN_LABEL = { seal: 'シール', danball: '段ボール', carrier: '配送', due: '出荷日' };
+function learnValLabel(field, val) {
+  if (field === 'due') { const n = Number(val); return n === 0 ? '本日' : n === 1 ? '明日' : n === 2 ? '明後日' : n + '日後'; }
+  if (field === 'carrier') return val || 'なし';
+  return val;
+}
+// 人が選んだ値を記録。同じ値なら回数を足し、違う値なら上書き（最後に人が選んだ値が正）
+function learnPut(it, field, val, how) {
+  if (!it) return;
+  const keys = learnKeys(it, field); if (!keys.length) return;
+  if (field === 'due') { const n = dueOffsetDays(String(val || '')); if (n === null || n < 0 || n > 14) return; val = String(n); }
+  else val = String(val == null ? '' : val);
+  if (field === 'carrier' && !val) return;                     // 「なし」は覚えない
+  const k = keys[0];
+  const tab = (learnData[field] = learnData[field] || {});
+  const prev = tab[k];
+  const rec = { val: val, n: (prev && String(prev.val) === val) ? (Number(prev.n) || 0) + 1 : 1, at: Date.now(),
+                how: how || '', sample: String(getVal(it, 'customer') || '').slice(0, 20) };
+  tab[k] = rec;
+  db.ref('settings/learn/' + field + '/' + k).set(rec);
+  if (!prev || String(prev.val) !== val) learnToast(it, field, k, val);
+}
+function learnForget(field, key) {
+  if (learnData[field]) delete learnData[field][key];
+  db.ref('settings/learn/' + field + '/' + key).remove();
+  if (setupKey) openSetupModal(setupKey);                    // 予想をやり直して表示
+}
+function learnWhy(r, field) {
+  const who = r.key === 'EC' || String(r.key).indexOf('EC|') === 0 ? 'ネット注文' : 'この取引先';
+  const len = String(r.key).split('|')[1];
+  return '🧠 学習: ' + who + (len ? '（' + len + 'mm）' : '') + 'は前回「' + learnValLabel(field, r.val) + '」に直しました' + (Number(r.n) > 1 ? '（' + r.n + '回）' : '');
+}
+function learnToast(it, field, key, val) {
+  const old = document.getElementById('learn-toast'); if (old) old.remove();
+  const d = document.createElement('div');
+  d.id = 'learn-toast';
+  d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:2px solid #6a1b9a;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:10px 16px;max-width:92vw;font-size:13px;line-height:1.6';
+  const who = key === 'EC' || key.indexOf('EC|') === 0 ? 'ネット注文' : String(getVal(it, 'customer') || '');
+  const len = key.split('|')[1];
+  d.innerHTML = '<b style="color:#6a1b9a">🧠 覚えました</b>　' + who + (len ? '（' + len + 'mm）' : '') + ' の' + LEARN_LABEL[field] + ' → <b>' + learnValLabel(field, val) + '</b><br><span style="color:#78909c;font-size:12px">次回からこの値を先に出します</span>';
+  document.body.appendChild(d);
+  setTimeout(() => { const el = document.getElementById('learn-toast'); if (el === d) el.remove(); }, 6000);
+}
+
+// シル/段ボの予想。学習（人が直した値）＞西濃ルール＞シール・段ボール表＞過去件数。
 // （新規行の初期値が「無」なので、実績の「無」の数はアテにならない）
 // carrier を渡すと配送業者のルール（西濃＝シールなし）を優先する
 function guessMark(it, field, carrier) {
+  const L = learnGet(it, field);
+  if (L) return { val: L.val, why: learnWhy(L, field), learn: L.key };
   if (field === 'seal' && isSeino(carrier === undefined ? getVal(it, 'carrier') : carrier)) {
     return { val: '無', why: '西濃はシールなし' };
   }
@@ -2210,10 +2284,15 @@ function guessMark(it, field, carrier) {
   return { val: '無', why: '過去の事例なし（初期値の「無」）' };
 }
 function guessCarrier(it) {
-  const now = String(getVal(it, 'carrier') || '').trim();
-  if (now && now !== '-') return { val: now, why: 'すでに入っています' };
+  const now0 = String(getVal(it, 'carrier') || '').trim(), now = now0 === '-' ? '' : now0;
   const cust = String(getVal(it, 'customer'));
   const len = String(getVal(it, 'length'));
+  // 今入っている値が「自動で入った値」か（注文一元管理の登録値=ord_base と同じ／ECの長さルール）。人が直した値なら学習より優先
+  let base = null; try { base = it.ord_base ? JSON.parse(it.ord_base) : null; } catch (e) {}
+  const autoNow = !now || (base ? String(base.carrier || '') === now : /ネット|楽天|ヤフ/.test(cust));
+  const L = learnGet(it, 'carrier');
+  if (L && autoNow) return { val: L.val, why: L.val === now ? learnWhy(L, 'carrier') + '＝今の値と一致' : learnWhy(L, 'carrier'), learn: L.key };
+  if (now) return { val: now, why: 'すでに入っています' };
   if (/ネット|楽天|ヤフ/.test(cust)) {
     const c = len === '910' ? '佐川' : (['1820','3000','4000'].includes(len) ? '西濃' : '');
     if (c) return { val: c, why: 'EC（' + len + 'mm）の自動ルール' };
@@ -2243,10 +2322,12 @@ function guessDue(it) {
     });
   });
   if (best) return { val: best.d, why: '同じ取引先の作業中の行と同じ出荷日（' + dueLabel(best.d) + '）' };
+  const L = learnGet(it, 'due');
+  if (L) return { val: isoAfter(Number(L.val) || 0), why: learnWhy(L, 'due'), learn: L.key };
   return { val: '', why: '過去の出荷日データが少ないため予想なし' };
 }
 
-let setupKey = null, setupDraft = null, setupWhy = null;
+let setupKey = null, setupDraft = null, setupWhy = null, setupPred = null, setupLearn = null;
 function isoAfter(days) {
   const d = new Date(); d.setDate(d.getDate() + days);
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -2261,7 +2342,7 @@ function maybeOpenSetup(key, val) {
 }
 function closeSetupModal() {
   document.getElementById('setupModal').classList.remove('show');
-  setupKey = null; setupDraft = null; setupWhy = null;
+  setupKey = null; setupDraft = null; setupWhy = null; setupPred = null; setupLearn = null;
 }
 function openSetupModal(key) {
   const it = allItems.find(i => itemKey(i) === key);
@@ -2278,6 +2359,8 @@ function openSetupModal(key) {
     const gs = guessMark(cur, 'seal', gc.val), gd = guessMark(cur, 'danball');
     setupDraft = { seal: gs.val, danball: gd.val, carrier: gc.val, due: gu.val };
     setupWhy = { seal: gs.why, danball: gd.why, carrier: gc.why, due: gu.why };
+    setupPred = Object.assign({}, setupDraft);                           // 予想そのもの（登録時の学習判定に使う）
+    setupLearn = { seal: gs.learn || '', danball: gd.learn || '', carrier: gc.learn || '', due: gu.learn || '' };
     renderSetupBody();
   });
 }
@@ -2286,7 +2369,7 @@ function setupSet(f, v) {
   if (!setupDraft) return;
   setupDraft[f] = v;
   if (f === 'carrier') {
-    if (isSeino(v)) { setupDraft.seal = '無'; setupWhy.seal = SEAL_SEINO_WHY; }
+    if (isSeino(v) && !(setupLearn && setupLearn.seal)) { setupDraft.seal = '無'; setupWhy.seal = SEAL_SEINO_WHY; }
     else if (setupWhy.seal === SEAL_SEINO_WHY) {        // 西濃を外したら予想し直す
       const it = allItems.find(i => itemKey(i) === setupKey);
       const g = it ? guessMark(it, 'seal', v) : { val: '無', why: '' };
@@ -2302,13 +2385,15 @@ function renderSetupBody() {
   const e = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const dim = [getVal(it, 'thickness'), getVal(it, 'width'), getVal(it, 'length')].filter(Boolean).join('×');
   const cust = (getVal(it, 'customer') || '').trim();
+  // 学習した値が根拠のときは「忘れる」で消せる（間違って覚えた時用）
+  const forget = f => (setupLearn && setupLearn[f]) ? ' <a href="#" style="color:#6a1b9a;font-size:11px" onclick="event.preventDefault();learnForget(\'' + f + '\',\'' + e(setupLearn[f]) + '\')">忘れる</a>' : '';
   const mark = (f, label) => {
     const on = setupDraft[f] === '有';
     return '<div class="st-item"><span class="st-name">' + label + '</span>' +
       '<div class="st-chips">' +
       '<button class="st-chip ' + (on ? 'on' : '') + '" onclick="setupSet(\'' + f + '\',\'有\')">有</button>' +
       '<button class="st-chip ' + (on ? '' : 'on off') + '" onclick="setupSet(\'' + f + '\',\'無\')">無</button>' +
-      '</div><div class="st-why">' + e(setupWhy[f]) + '</div></div>';
+      '</div><div class="st-why">' + e(setupWhy[f]) + forget(f) + '</div></div>';
   };
   const carChips = ['内藤', '西濃', '佐川', '自社', '引取'].map(c => {
     const on = setupDraft.carrier === c;
@@ -2327,13 +2412,13 @@ function renderSetupBody() {
     '<div class="sr-row"><b>' + e(fullName(cust) || cust || '(取引先未入力)') + '</b><br>' +
     e(HINMEI_NAME[it.hinmei] || it.hinmei || '') + ' ' + e(getVal(it, 'grade')) + '　' + e(dim) +
     '　予定 <b>' + e(getVal(it, 'planned')) + '束</b></div>' +
-    '<div class="st-note">過去の事例からの予想です。ちがうところは押して直してください。</div>' +
+    '<div class="st-note">過去の事例からの予想です。ちがうところは押して直してください（直した内容は次回の予想に活かします🧠）。</div>' +
     mark('seal', '① シール') +
     mark('danball', '② 段ボール') +
     '<div class="st-item"><span class="st-name">③ 配送</span>' +
-    '<div class="st-chips">' + carChips + '</div><div class="st-why">' + e(setupWhy.carrier) + '</div></div>' +
+    '<div class="st-chips">' + carChips + '</div><div class="st-why">' + e(setupWhy.carrier) + forget('carrier') + '</div></div>' +
     '<div class="st-item"><span class="st-name">④ 出荷日</span>' +
-    '<div class="st-chips">' + dueChips + '</div><div class="st-why">' + e(setupWhy.due) + '</div></div>' +
+    '<div class="st-chips">' + dueChips + '</div><div class="st-why">' + e(setupWhy.due) + forget('due') + '</div></div>' +
     '<div class="sr-btns">' +
     '<button class="sr-ok st-ok" onclick="setupSave()">この内容で登録</button>' +
     '<button class="sr-cancel" onclick="setupSkip()">あとで</button></div>';
@@ -2357,6 +2442,14 @@ function setupSave() {
   changes.forEach(p => { it[p[0]] = p[1]; });
   it.setup_done = '1';
   saveItem(it);
+  // 学習: 予想と違う値を人が選んだ→覚える。学習由来の予想をそのまま登録→確認回数を足す
+  const pred = setupPred || {}, lrn = setupLearn || {};
+  ['seal', 'danball', 'carrier', 'due'].forEach(f => {
+    const v = d[f] || '';
+    if (f === 'due' && !v) return;
+    if (String(v) !== String(pred[f] || '')) learnPut(it, f, v, 'ダイアログで変更');
+    else if (lrn[f]) learnPut(it, f, v, '確認');
+  });
   naitoShkRemind(d.carrier);
   closeSetupModal();
   render();
