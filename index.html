@@ -2655,7 +2655,7 @@ function buildNouhin(en){
   // 【…】が無くても「杉本様分」のような「○○様分」は拾う（例: 備考「請求書は杉本様分と入れる」→ 納品書備考「杉本様分」）
   const bikoTexts = [...new Set(rows.flatMap(it=>{
     const r=String(it.remark||''); const m=[...r.matchAll(/【([^】]+)】/g)].map(x=>x[1].trim());
-    if(!m.length){ const y=[...r.matchAll(/([^\s、。,.「」【】（）()はをのにとへで]+様分)/g)].map(x=>x[1]);   // 助詞で区切る（「請求書は杉本様分」→「杉本様分」） m.push(...y); }
+    if(!m.length){ const y=[...r.matchAll(/([^\s、。,.「」【】（）()はをのにとへで]+様分)/g)].map(x=>x[1]); m.push(...y); }   /* 助詞で区切る（「請求書は杉本様分」→「杉本様分」） */
     return m; }).filter(Boolean))];
   if (bikoTexts.length) data.remarks = bikoTexts.join('　');
   // 特価設定の明細一覧（納品書側で「特価で単価設定済み」ポップアップに使う）
