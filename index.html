@@ -2651,6 +2651,9 @@ function buildNouhin(en){
   // 「⋯」メニューで登録した「忘れちゃいけないメモ」も渡す（納品書側でポップアップ表示、重複除去）
   const notes = [...new Set(rows.map(it=>String(it.important_note||'').trim()).filter(Boolean))];
   if (notes.length) data.notes = notes;
+  // 備考の【…】＝納品書の備考欄に印字する文言（例【杉本様分】→納品書備考「杉本様分」→確定でDB備考に保存→請求書の備考にも自動転記・2026-09-08）
+  const bikoTexts = [...new Set(rows.flatMap(it=>[...String(it.remark||'').matchAll(/【([^】]+)】/g)].map(m=>m[1].trim())).filter(Boolean))];
+  if (bikoTexts.length) data.remarks = bikoTexts.join('　');
   // 特価設定の明細一覧（納品書側で「特価で単価設定済み」ポップアップに使う）
   const tokkaMsgs = [...new Set(items.filter(o=>o.price!=null).map(o=>
     [o.name, o.grade, o.l?o.l+'mm':''].filter(Boolean).join(' ') + '：' + o.price.toLocaleString() + '円/束'))];
