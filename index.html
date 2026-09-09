@@ -1538,6 +1538,7 @@ const CUST_NOTES = [
   // この現場の納品が終わったらこの1行を消すこと。
   { match: /河内|里深|下浦/,
     note: '配達前電話連絡・ラベル添付',   // 9/9 本人指示で短く（詳細はfull＝忘れちゃいけないメモ側）
+    legacy: ['里深邸: 配達前TEL 下浦大工090-8065-1666・ラベル貼付'],   // 旧文面。古いタブが付け直した分を読み込み時に掃除
     full: 'お届け先=岡山県津山市新野東685-4 里深邸(現場)。配達前に下浦大工様090-8065-1666へ電話が入るよう西濃へ手配する(届け先TEL=下浦様の番号)。梱包に「配達前 電話連絡のお願い」ラベルを貼付。' },
 ];
 function custNoteFor(cust) {
@@ -1552,6 +1553,10 @@ function applyCustNote(it) {
   const hit = custNoteFor(it.customer);
   const cur = String(it.remark || '');
   let changed = false;
+  // 旧文面（legacy）が残っていれば消す
+  CUST_NOTES.forEach(d => (d.legacy || []).forEach(old => {
+    if (String(it.remark || '').includes(old)) { it.remark = String(it.remark).split(old).join('').replace(/\s+/g, ' ').trim(); changed = true; }
+  }));
   // 今の取引先に該当しない分の付箋を掃除
   CUST_NOTES.forEach(d => {
     if (d !== hit && cur.includes(d.note)) {
