@@ -623,6 +623,8 @@ function loadData() {
         }
       }
       if (String(it.grade || '').includes('B') && it.zaiko !== '1') { it.zaiko = '1'; dirty = true; }
+      // 配送特記メモ（河内様など）: どの経路で入った行でも読み込み時に備考へ入れる（出荷完了は対象外）
+      if (it.archived !== '1' && applyCustNote(it)) dirty = true;
       // オオツカの特上小・無節はテープ青。既存行にも自動で備考を付ける（出荷完了は対象外）
       if (it.archived !== '1' && TAPE_CUST.test(String(it.customer || '')) && TAPE_GRADE.test(String(it.grade || ''))
           && !String(it.remark || '').includes(TAPE_NOTE)) {
@@ -1510,7 +1512,7 @@ function editGuard(key, field, newVal) {
 function onCellEdit(el) {
   if (!editGuard(el.dataset.key, el.dataset.field, el.textContent.trim())) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
-  if (el.dataset.field === 'customer') { autoCarrier(el.dataset.key); autoTapeNote(el.dataset.key, 'customer'); }
+  if (el.dataset.field === 'customer') { autoCarrier(el.dataset.key); autoTapeNote(el.dataset.key, 'customer');  autoCustNote(el.dataset.key, 'customer'); }
 }
 // 長さ設定時: 入数をその長さのデフォルト（先頭）に自動切替＋配送業者の自動選択
 function onLengthSet(key, val) {
@@ -1525,6 +1527,48 @@ function autoCarrier(key) {
   const len = String(getVal(it,'length'));
   const carrier = len === '910' ? '佐川' : (['1820','3000','4000'].includes(len) ? '西濃' : '');
   if (carrier && getVal(it,'carrier') !== carrier) { saveField(key, 'carrier', carrier); seinoNoSeal(key, carrier); }
+}
+// 配送特記メモ: 決まった届け先の「毎回やること」を備考へ自動記載（2026-09-09）
+// 納品書は発送より後になることがあるので、加工予定表に行が入った時点で備考に出す。
+// 同じ届け先の表を 納品書ツール(hayazai_nouhin)・西濃送り状デスク(seino-desk) にも置いている。
+//   note = 備考へ入れる短い文（列が狭いので短く）／ full = ⋯メニューの「忘れちゃいけないメモ」
+const CUST_NOTES = [
+  { match: /河内|里深|下浦/,
+    note: '配達前TEL 下浦大工090-8065-1666・ラベル貼付',
+    full: 'お届け先=岡山県津山市新野東685-4 里深邸(現場)。配達前に下浦大工様090-8065-1666へ電話が入るよう西濃へ手配する(届け先TEL=下浦様の番号)。梱包に「配達前 電話連絡のお願い」ラベルを貼付。' },
+];
+function custNoteFor(cust) {
+  const c = String(cust || '');
+  if (!c) return null;
+  for (const d of CUST_NOTES) { if (d.match.test(c)) return d; }
+  return null;
+}
+// 該当すれば備考に足し、取引先が変わって外れたら消す（テープ青と同じ作り）。戻り値=書き換えたか
+function applyCustNote(it) {
+  if (!it) return false;
+  const hit = custNoteFor(it.customer);
+  const cur = String(it.remark || '');
+  let changed = false;
+  // 今の取引先に該当しない分の付箋を掃除
+  CUST_NOTES.forEach(d => {
+    if (d !== hit && cur.includes(d.note)) {
+      it.remark = String(it.remark).split(d.note).join('').replace(/\s+/g, ' ').trim();
+      changed = true;
+    }
+  });
+  if (hit && !String(it.remark || '').includes(hit.note)) {
+    it.remark = String(it.remark || '') ? String(it.remark) + ' ' + hit.note : hit.note;
+    changed = true;
+  }
+  // 「忘れちゃいけないメモ」は空のときだけ入れる（人が書いた内容は消さない）
+  if (hit && hit.full && !String(it.important_note || '').trim()) { it.important_note = hit.full; changed = true; }
+  return changed;
+}
+// 取引先を変えた直後に呼ぶ（他の列の変更では動かさない）
+function autoCustNote(key, field) {
+  if (field && field !== 'customer') return;
+  const it = allItems.find(i => itemKey(i) === key);
+  if (applyCustNote(it)) saveItem(it);
 }
 // オオツカの特上小・無節はテープを青に変える（2026-09-04 オオツカ依頼）→ 備考へ自動記載
 const TAPE_NOTE = 'テープ青';
@@ -1683,6 +1727,7 @@ function onGenSelChange(el) {
       saveField(key, field, v.trim());
       autoZaikoForB(key, field, v.trim());
       autoTapeNote(key, field);
+      autoCustNote(key, field);
       if (field === 'length') onLengthSet(key, v.trim());
       if (field === 'carrier') { naitoShkRemind(v.trim()); seinoNoSeal(key, v.trim()); }
       if (field === 'planned') maybeOpenSetup(key, v.trim());
@@ -1698,6 +1743,7 @@ function onGenSelChange(el) {
     saveField(key, field, el.value);
     autoZaikoForB(key, field, el.value);
     autoTapeNote(key, field);
+    autoCustNote(key, field);
     if (field === 'length') onLengthSet(key, el.value);
     if (field === 'carrier') { naitoShkRemind(el.value); seinoNoSeal(key, el.value); }
     if (field === 'planned') maybeOpenSetup(key, el.value);
