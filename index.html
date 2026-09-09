@@ -1921,7 +1921,7 @@ function logEcShip(it) {
   it.ec_logged = Date.now();
   saveItem(it);
   try { db.ref('ec_ship_log').push(rec); } catch (e) {}
-  fetch(GAS_URL + '?action=ecShip&k=nk-9t2Xr7Lq4wPz', { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(rec) }).catch(() => {});
+  fetch(GAS_URL + '?action=ecShip'+nouhinAuth_(), { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(rec) }).catch(() => {});
 }
 function onRestore(key) {
   const it = allItems.find(i => itemKey(i) === key);
@@ -2915,6 +2915,13 @@ function sendShukka(btn){
 
 // 製造完了データをスプレッドシートに同期
 const GAS_URL ='https://script.google.com/macros/s/AKfycbyE2O2zEk1NDYskaxflVtPReblSOyA5CyjfHTNXAYzK6tX1zgEzRypcFFSjtDy2SWa7wg/exec';
+// 納品書GASの合言葉: このツールにはログインが無いので、同一オリジンの他ツール(共通SSO)でログイン済みならそのpassを使い、無い時だけ従来の合言葉（2026-09-09）
+function nouhinAuth_(){
+  for(const k of ["hayazai_sso_cred","hayazai_board_cred","orderdesk_cred","faxdesk_cred","seinodesk_cred"]){
+    try{ const c=JSON.parse(localStorage.getItem(k)||"null"); const p=c&&(c.pass||c.p); if(p) return "&pass="+encodeURIComponent(p); }catch(e){}
+  }
+  return "&k=nk-9t2Xr7Lq4wPz";
+}
 let syncTimer = null;
 function syncToSheet() {
   if (syncTimer) clearTimeout(syncTimer);
@@ -2935,7 +2942,7 @@ function syncToSheet() {
       actual: it.actual || '',
       remark: it.remark || ''
     }));
-    fetch(GAS_URL + '?action=syncKanryo&k=nk-9t2Xr7Lq4wPz', {
+    fetch(GAS_URL + '?action=syncKanryo'+nouhinAuth_(), {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
