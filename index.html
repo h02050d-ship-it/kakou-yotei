@@ -72,7 +72,11 @@
   .kanryo-section { flex-shrink: 0; padding-bottom: 24px; }
 
   /* 納期セル＋自前カレンダー（複数選択対応） */
-  .due-wrap { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 1.3em; cursor: pointer; }
+  .due-wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; width: 100%; min-height: 1.3em; cursor: pointer; }
+  .chaku-disp { flex-basis: 100%; text-align: center; font-size: 10px; font-weight: 800; color: #e65100; line-height: 1.15; white-space: nowrap; }
+  .due-cell-today .chaku-disp { color: #ffe0b2; }
+  .rowmenu-pop button.rm-seino { color: #e65100; }
+  .rowmenu-pop button.rm-seino:hover { background: #fff3e0; }
   .due-disp { font-weight: 800; color: #00695c; white-space: nowrap; }
   .due-disp.multi {
     display: inline-flex; flex-direction: column; align-items: center;
@@ -575,7 +579,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -829,7 +833,7 @@ function cellRenderers(it, sz) {
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
     zaiko: `<div class="mark-toggle mt-zaiko ${getVal(it,'zaiko')==='1'?'on':''}" data-key="${k}" data-field="zaiko" onclick="onMarkToggle(this)">${getVal(it,'zaiko')==='1'?'有':''}</div>`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
-    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}</div>`,
+    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}${chakuDispHtml(it)}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -1496,7 +1500,7 @@ function captureOrdBase(it) {
 }
 // 変更を許可してよいか。配送確認/支払確認中の行のみ確認する。newValを渡すと具体差分を出す。
 function editGuard(key, field, newVal) {
-  if (field === 'actual' || field === 'order' || field === 'humanchk') return true;   // 状態・工程・確認チェックは許可
+  if (field === 'actual' || field === 'order' || field === 'humanchk' || field === 'chaku' || field === 'chaku_kbn') return true;   // 状態・工程・確認チェック・着日指定は許可
   const it = allItems.find(i => itemKey(i) === key);
   if (!it || !isConfirmState(it)) return true;
   const av = String(getVal(it, 'actual'));
@@ -1505,11 +1509,14 @@ function editGuard(key, field, newVal) {
     const oldV = String(base[field] == null ? '' : base[field]);
     if (oldV === String(newVal)) return true;   // 実質変更なし
     const ok = confirm(`⚠️ この行は「${av}」中です。\n\n注文内容とちがう変更です：\n　${ORD_LABEL[field]}　${ordDisp(field, oldV)} → ${ordDisp(field, newVal)}\n\n注文一元管理と食い違っていませんか？本当に変更しますか？`);
-    if (ok) { base[field] = String(newVal); it.ord_base = JSON.stringify(base); saveItem(it); }
+    if (ok) { base[field] = String(newVal); it.ord_base = JSON.stringify(base); it.manual = markManual(it.manual, field); saveItem(it); }
     return ok;
   }
   return confirm(`⚠️ この行は「${av}」中です。\n注文一元管理の内容と食い違う変更になっていませんか？\n\nこのまま変更して大丈夫ですか？`);
 }
+// 人が確認ダイアログを通して直した項目を記録する。注文側GAS(ingestKakouAuto_)は manual に入っている項目を
+// 「注文の再判定」で上書きしない（2026-09-11 岸川様の厚さ12→15が15分ごとに12へ戻る事故の修正）
+function markManual(cur, field) { const a = String(cur || '').split(',').filter(Boolean); if (!a.includes(field)) a.push(field); return a.join(','); }
 function onCellEdit(el) {
   if (!editGuard(el.dataset.key, el.dataset.field, el.textContent.trim())) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
@@ -1641,6 +1648,15 @@ function fmtDue(v) {
     if (isNaN(d)) return s;
     return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
   }).join(' or ');
+}
+// 着日指定（⋯メニュー／一括設定ポップアップで登録）: 出荷日の下に小さく「着9/19㈯ 午前」
+function chakuDispHtml(it) {
+  const c = String(getVal(it, 'chaku') || '');
+  if (!c) return '';
+  const d = new Date(c + 'T00:00:00');
+  const lab = isNaN(d) ? c : ((d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()]);
+  const kbn = String(getVal(it, 'chaku_kbn') || '').replace(/[<>&"]/g, '');
+  return '<div class="chaku-disp" title="着日指定">着' + lab + (kbn ? ' ' + kbn : '') + '</div>';
 }
 // 出荷日セル表示: 1日=横1行、複数日=上下2行(小さめ)で「7/7㈫ / or 7/9㈭」→備考へはみ出さない
 function dueDispHtml(v) {
@@ -1987,7 +2003,8 @@ function openRowMenu(btn, key, ev) {
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
-    `<button class="rm-setup" onclick="rowMenuSetup()">📋 シール・配送・出荷日</button>` +
+    `<button class="rm-setup" onclick="rowMenuSetup()">📋 シール・配送・出荷日・着日</button>` +
+    (_it && isSeino(getVal(_it, 'carrier')) ? `<button class="rm-seino" onclick="rowMenuSeino()">🚚 西濃送り状を作る</button>` : '') +
     `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
@@ -2413,19 +2430,38 @@ function openSetupModal(key) {
     if (setupKey !== key) return;                       // 読込中に閉じられた
     const cur = allItems.find(i => itemKey(i) === key);
     if (!cur) return;
-    const gc = guessCarrier(cur), gu = guessDue(cur);
+    const gc = guessCarrier(cur), gu = guessDue(cur), gk = guessChaku(cur);
     const gs = guessMark(cur, 'seal', gc.val), gd = guessMark(cur, 'danball');
-    setupDraft = { seal: gs.val, danball: gd.val, carrier: gc.val, due: gu.val };
-    setupWhy = { seal: gs.why, danball: gd.why, carrier: gc.why, due: gu.why };
+    setupDraft = { seal: gs.val, danball: gd.val, carrier: gc.val, due: gu.val, chaku: gk.val, chaku_kbn: gk.kbn };
+    setupWhy = { seal: gs.why, danball: gd.why, carrier: gc.why, due: gu.why, chaku: gk.why };
     setupPred = Object.assign({}, setupDraft);                           // 予想そのもの（登録時の学習判定に使う）
     setupLearn = { seal: gs.learn || '', danball: gd.learn || '', carrier: gc.learn || '', due: gu.learn || '' };
     renderSetupBody();
   });
 }
 const SEAL_SEINO_WHY = '西濃はシールなし';
+// 着日の時間帯は運送会社の区分に合わせる（西濃=午前/午後の2区分、佐川=時間帯枠）。内藤/自社/引取は日付のみ
+const CHAKU_KBN = { '西濃': ['午前', '午後'], '佐川': ['午前中', '12-14', '14-16', '16-18', '18-20', '19-21'] };
+function guessChaku(it) {
+  const cur = String(getVal(it, 'chaku') || '');
+  if (cur) return { val: cur, kbn: String(getVal(it, 'chaku_kbn') || ''), why: 'すでに入っています' };
+  const m = String(getVal(it, 'remark') || '').match(/(\d{1,2})\/(\d{1,2})着指定/);   // 注文一元管理が備考に入れた「9/19着指定」
+  if (m) {
+    const now = new Date(); let d = new Date(now.getFullYear(), +m[1] - 1, +m[2]);
+    if (d - now < -60 * 86400000) d = new Date(now.getFullYear() + 1, +m[1] - 1, +m[2]);
+    const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    return { val: iso, kbn: '', why: '注文の着日希望（備考「' + m[0] + '」）から' };
+  }
+  return { val: '', kbn: '', why: '指定なし（お客様から着日の希望があれば入れてください）' };
+}
 function setupSet(f, v) {
   if (!setupDraft) return;
   setupDraft[f] = v;
+  if (f === 'chaku' && !v) setupDraft.chaku_kbn = '';
+  if (f === 'carrier') {
+    const ks = CHAKU_KBN[v] || [];
+    if (setupDraft.chaku_kbn && !ks.includes(setupDraft.chaku_kbn)) setupDraft.chaku_kbn = '';   // 運送会社が変われば区分も変わる
+  }
   if (f === 'carrier') {
     if (isSeino(v) && !(setupLearn && setupLearn.seal)) { setupDraft.seal = '無'; setupWhy.seal = SEAL_SEINO_WHY; }
     else if (setupWhy.seal === SEAL_SEINO_WHY) {        // 西濃を外したら予想し直す
@@ -2466,6 +2502,17 @@ function renderSetupBody() {
   }).join('')
     + '<input type="date" class="st-date" value="' + e(setupDraft.due) + '" onchange="setupSet(\'due\',this.value)">'
     + '<button class="st-chip ' + (setupDraft.due ? '' : 'on off') + '" onclick="setupSet(\'due\',\'\')">なし</button>';
+  // ⑤ 着日指定: 日付＋運送会社ごとの時間帯区分
+  const kbns = CHAKU_KBN[setupDraft.carrier] || [];
+  const chakuChips = '<input type="date" class="st-date" value="' + e(setupDraft.chaku || '') + '" onchange="setupSet(\'chaku\',this.value)">'
+    + '<button class="st-chip ' + (setupDraft.chaku ? '' : 'on off') + '" onclick="setupSet(\'chaku\',\'\')">指定なし</button>';
+  const kbnChips = (kbns.length && setupDraft.chaku)
+    ? '<div class="st-chips" style="margin-top:6px">' + kbns.map(x => '<button class="st-chip ' + (setupDraft.chaku_kbn === x ? 'on' : '') + '" onclick="setupSet(\'chaku_kbn\',\'' + x + '\')">' + x + '</button>').join('')
+      + '<button class="st-chip ' + (setupDraft.chaku_kbn ? '' : 'on off') + '" onclick="setupSet(\'chaku_kbn\',\'\')">時間指定なし</button></div>'
+    : '';
+  const kbnWhy = setupDraft.chaku
+    ? (kbns.length ? '　時間帯は' + e(setupDraft.carrier) + 'の区分（' + kbns.join('／') + '）だけ指定できます' : (setupDraft.carrier ? '　' + e(setupDraft.carrier) + 'は時間帯の指定ができません（日付のみ）' : ''))
+    : '';
   body.innerHTML =
     '<div class="sr-row"><b>' + e(fullName(cust) || cust || '(取引先未入力)') + '</b><br>' +
     e(HINMEI_NAME[it.hinmei] || it.hinmei || '') + ' ' + e(getVal(it, 'grade')) + '　' + e(dim) +
@@ -2477,10 +2524,16 @@ function renderSetupBody() {
     '<div class="st-chips">' + carChips + '</div><div class="st-why">' + e(setupWhy.carrier) + forget('carrier') + '</div></div>' +
     '<div class="st-item"><span class="st-name">④ 出荷日</span>' +
     '<div class="st-chips">' + dueChips + '</div><div class="st-why">' + e(setupWhy.due) + forget('due') + '</div></div>' +
+    '<div class="st-item"><span class="st-name">⑤ 着日指定（お客様の希望があるときだけ）</span>' +
+    '<div class="st-chips">' + chakuChips + '</div>' + kbnChips +
+    '<div class="st-why">' + e(setupWhy.chaku) + kbnWhy + '</div></div>' +
     '<div class="sr-btns">' +
     '<button class="sr-ok st-ok" onclick="setupSave()">この内容で登録</button>' +
+    (isSeino(setupDraft.carrier) ? '<button class="sr-ok st-ok" style="background:#e65100" onclick="setupSaveAndSeino()">🚚 登録して西濃送り状を作る</button>' : '') +
     '<button class="sr-cancel" onclick="setupSkip()">あとで</button></div>';
 }
+// 登録したうえで、この行の内容を西濃送り状デスクへ渡して開く
+function setupSaveAndSeino() { const key = setupKey; setupSave(); openSeinoDesk(key); }
 // ⚠️ 1項目ずつ saveField してはいけない。saveField→saveItem の set() で Firebase の
 // value リスナーが同期的に走り allItems が新しいオブジェクトに差し替わるため、
 // 古い参照に対する最後の saveItem が後半の項目（配送・出荷日）を消してしまう。
@@ -2490,7 +2543,7 @@ function setupSave() {
   const cur = allItems.find(i => itemKey(i) === key);
   if (!cur || !d) { closeSetupModal(); return; }
   const changes = [];
-  [['seal', d.seal || '無'], ['danball', d.danball || '無'], ['carrier', d.carrier || ''], ['due', d.due || '']].forEach(p => {
+  [['seal', d.seal || '無'], ['danball', d.danball || '無'], ['carrier', d.carrier || ''], ['due', d.due || ''], ['chaku', d.chaku || ''], ['chaku_kbn', d.chaku ? (d.chaku_kbn || '') : '']].forEach(p => {
     if (String(getVal(cur, p[0])) === String(p[1])) return;
     if (!editGuard(key, p[0], p[1])) return;   // editGuard も saveItem する場合がある
     changes.push(p);
@@ -2518,6 +2571,27 @@ function setupSkip() {
   closeSetupModal();
 }
 function rowMenuSetup() { const key = rowMenuKey; closeRowMenu(); openSetupModal(key); }
+function rowMenuSeino() { const key = rowMenuKey; closeRowMenu(); openSeinoDesk(key); }
+// 西濃送り状デスクへ、この行の内容（届け先・個口・長さ・出荷日・着日指定・行キー）をURLハッシュで渡して開く（2026-09-11）
+// 注文由来の行(od_)は送り状デスク側で注文の住所を引き、手入力行は取引先マスタから住所を引く
+const SEINO_DESK_URL = 'https://h02050d-ship-it.github.io/seino-desk/';
+const SEINO_KBN_CODE = { '午前': '1', '午後': '2' };
+function openSeinoDesk(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  const k = String(itemKey(it));
+  const cust = String(getVal(it, 'customer') || '').trim();
+  const p = {
+    from: 'kakou', uid: k, cust: cust, name: fullName(cust) || cust,
+    kosu: String(getVal(it, 'planned') || ''), len: String(getVal(it, 'length') || ''), grade: String(getVal(it, 'grade') || ''),
+    qty: String(getVal(it, 'qty') || ''), hinmei: String(getVal(it, 'hinmei') || ''), thick: String(getVal(it, 'thickness') || ''),
+    date: String(getVal(it, 'due') || '').split(',')[0] || '', chaku: String(getVal(it, 'chaku') || ''),
+    kbn: SEINO_KBN_CODE[String(getVal(it, 'chaku_kbn') || '')] || '', od: k.startsWith('od_') ? '1' : '',
+    note: String(getVal(it, 'important_note') || '').slice(0, 200)
+  };
+  const qs = Object.keys(p).filter(x => p[x] !== '').map(x => x + '=' + encodeURIComponent(p[x])).join('&');
+  window.open(SEINO_DESK_URL + '#' + qs, '_blank');
+}
 
 // シール・段ボール確認表モーダル
 function showSealModal() {
