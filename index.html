@@ -579,7 +579,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_mail','due_mail_at'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
   });
   db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
@@ -587,7 +587,23 @@ function saveItem(it) {
 
 function saveField(key, field, val) {
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it[field] = val; saveItem(it); }
+  if (it) { it[field] = val; saveItem(it); if (field === 'due') ichibaDueNotify(it); }
+}
+
+// 市場系(EC以外)の行に出荷日が入ったら、納品書GASが取引先マスタ(取引方法=市売)で判定して
+// info@hayazai.com へ「納期を市場に連絡して」メールを送る（2026-09-11）。二重送信はGAS側が行の due_mail で防ぐ。
+// 一括設定ポップアップは複数項目を続けて保存するので、少し待ってから1回だけ送る
+const ichibaDueTimers = {};
+function ichibaDueNotify(it) {
+  const k = itemKey(it);
+  const c = String(getVal(it, 'customer')).trim();
+  if (!c || /^(ヤフ|楽天|ネット)/.test(c)) return;            // ECは対象外
+  if (!String(getVal(it, 'due')).trim()) return;               // 出荷日を消した時は送らない
+  if (String(getVal(it, 'due')) === String(getVal(it, 'due_mail'))) return;  // 同じ日付はメール済み
+  clearTimeout(ichibaDueTimers[k]);
+  ichibaDueTimers[k] = setTimeout(() => {
+    fetch(GAS_URL + '?action=ichibaDueMail' + nouhinAuth_(), { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ key: k }) }).catch(() => {});
+  }, 2000);
 }
 
 function saveColOrder(cols) {
