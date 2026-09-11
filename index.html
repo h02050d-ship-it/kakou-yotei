@@ -2569,6 +2569,7 @@ function setupSave() {
   changes.forEach(p => { it[p[0]] = p[1]; });
   it.setup_done = '1';
   saveItem(it);
+  if (changes.some(p => p[0] === 'due')) ichibaDueNotify(it);   // 一括設定で出荷日が入った→市場系なら納期連絡メール
   // 学習: 予想と違う値を人が選んだ→覚える。学習由来の予想をそのまま登録→確認回数を足す
   const pred = setupPred || {}, lrn = setupLearn || {};
   LEARN_FIELDS.forEach(f => {
