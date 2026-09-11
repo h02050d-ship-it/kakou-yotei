@@ -1536,7 +1536,24 @@ function markManual(cur, field) { const a = String(cur || '').split(',').filter(
 function onCellEdit(el) {
   if (!editGuard(el.dataset.key, el.dataset.field, el.textContent.trim())) { render(); return; }
   saveField(el.dataset.key, el.dataset.field, el.textContent.trim());
-  if (el.dataset.field === 'customer') { autoCarrier(el.dataset.key); autoTapeNote(el.dataset.key, 'customer');  autoCustNote(el.dataset.key, 'customer'); }
+  if (el.dataset.field === 'customer') { autoCustLength(el.dataset.key); autoCarrier(el.dataset.key); autoTapeNote(el.dataset.key, 'customer');  autoCustNote(el.dataset.key, 'customer'); }
+}
+// 取引先ごとの既定の長さ（2026-09-11 本人指示: オオツカは毎回2m）。
+// 行追加直後（長さが初期値4000のまま・予定未入力）のときだけ差し替え、人が長さを決めた行は触らない。
+const CUST_DEFAULT_LENGTH = [
+  { match: /オオツカ|大塚/, length: '2000' },
+];
+function autoCustLength(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  const d = CUST_DEFAULT_LENGTH.find(x => x.match.test(String(getVal(it, 'customer') || '')));
+  if (!d) return;
+  const len = String(getVal(it, 'length') || '');
+  const planned = String(getVal(it, 'planned') || '').trim();
+  if (len === d.length) return;
+  if (!(len === '' || len === '-' || len === '4000') || (planned && planned !== '-')) return;
+  saveField(key, 'length', d.length);
+  onLengthSet(key, d.length);
 }
 // 長さ設定時: 入数をその長さのデフォルト（先頭）に自動切替＋配送業者の自動選択
 function onLengthSet(key, val) {
