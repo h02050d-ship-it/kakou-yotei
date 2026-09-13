@@ -2014,7 +2014,7 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '');
-  return `<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}">⋯</button>`;
+  return `<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button>`;
 }
 
 // 行メニュー（コピー・削除のポップアップ）
