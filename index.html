@@ -580,9 +580,11 @@ function saveItem(it) {
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
    'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_mail','due_mail_at'].forEach(f => {
-    if (it[f] !== undefined && it[f] !== '') data[f] = it[f];
+    data[f] = (it[f] !== undefined && it[f] !== '') ? it[f] : null;   // 空は削除(null)
   });
-  db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).set(data);
+  // set(丸ごと)ではなく update(既知の項目だけ)にする。古いキャッシュ版ページ(SWRで更新直後は旧版が1回出る)が
+  // 知らない新項目(manual/chaku/due_mail等)を丸ごと保存で消していた(2026-09-14 岸川様の厚さ保護フラグが消えGASが12へ戻した)
+  db.ref('items/' + k.replace(/[.#$/\[\]]/g,'_')).update(data);
 }
 
 function saveField(key, field, val) {
