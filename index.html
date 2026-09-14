@@ -1756,7 +1756,18 @@ function renderDuePop() {
 function dueNav(d) { dueYm.m += d; if (dueYm.m < 0) { dueYm.m = 11; dueYm.y--; } if (dueYm.m > 11) { dueYm.m = 0; dueYm.y++; } renderDuePop(); }
 function dueSave() { saveField(dueKey, 'due', dueSel.join(',')); }
 function dueMultiToggle(cb) { dueMulti = cb.checked; if (!dueMulti && dueSel.length > 1) { dueSel = [dueSel[0]]; dueSave(); } renderDuePop(); }
+// 出荷日が過去日・日曜ならうっかりの可能性が高いので確認（複数選択の解除は対象外）
+function dueDateConfirm(iso) {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d)) return true;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  const past = d < t, sun = d.getDay() === 0;
+  if (!past && !sun) return true;
+  const why = past && sun ? '日曜（過去日）' : (sun ? '日曜' : '過去日');
+  return confirm(`⚠️ ${d.getMonth() + 1}/${d.getDate()} は${why}です。この出荷日でよいですか？`);
+}
 function duePick(iso) {
+  if (!(dueMulti && dueSel.includes(iso)) && !dueDateConfirm(iso)) return;
   if (dueMulti) {
     if (dueSel.includes(iso)) dueSel = dueSel.filter(s => s !== iso);
     else { dueSel.push(iso); if (dueSel.length > 2) dueSel = dueSel.slice(-2); }
@@ -1957,7 +1968,12 @@ function isArchived(key) {
 }
 function onArchive(key) {
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it.archived = '1'; it.archived_at = Date.now(); saveItem(it); logEcShip(it); }
+  if (!it) return;
+  // 納品書未作成（📄印なし）の市場・手入力行は確認。EC行（ネット/楽天/ヤフ）は自動納品書があるので対象外
+  if (String(getVal(it, 'nouhin_pre')) !== '1' && !/ネット|楽天|ヤフ/.test(String(it.customer || ''))) {
+    if (!confirm('納品書が未作成のようです（📄印なし）。出荷完了にしますか？')) return;
+  }
+  it.archived = '1'; it.archived_at = Date.now(); saveItem(it); logEcShip(it);
 }
 
 // ネット・楽天・ヤフの出荷完了は分析用にデータベーススプシ「EC出荷」タブへ蓄積
@@ -2087,6 +2103,8 @@ function rowMenuTokka() {
   if (raw === '') { saveField(key, 'tokka', ''); return; }   // 解除
   const n = parseFloat(raw);
   if (isNaN(n) || n <= 0) { alert('金額は正の数字で入力してください'); return; }
+  // 束単価として1,000円未満・50,000円超は桁違いのおそれ
+  if ((n < 1000 || n > 50000) && !confirm(`特価 ${n.toLocaleString()}円は桁が違いませんか？（束単価）\nこのまま設定しますか？`)) return;
   saveField(key, 'tokka', String(n));
 }
 // ===== 送料設定（🚚 行メニュー）=====
