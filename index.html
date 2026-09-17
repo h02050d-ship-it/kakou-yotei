@@ -2344,6 +2344,7 @@ function learnKeys(it, field) {
   return [c];
 }
 function learnGet(it, field) {
+  if (typeof LEARN_ENABLED !== 'undefined' && !LEARN_ENABLED) return null;
   const tab = (learnData || {})[field] || {};
   for (const k of learnKeys(it, field)) { const r = tab[k]; if (r && r.val !== undefined && r.val !== null) return Object.assign({ key: k }, r); }
   return null;
@@ -2357,7 +2358,10 @@ function learnValLabel(field, val) {
 // 人が選んだ値を記録。同じ値なら回数を足し、違う値なら上書き（最後に人が選んだ値が正）
 // 出荷日は便のまとまり・在庫・お客の都合で不規則なので学習対象外（2026-09-07 本人指示）
 const LEARN_FIELDS = ['seal', 'danball', 'carrier'];
+// 2026-09-18 本人指示「覚えましたってやつやっぱやめて」→ 学習機能を停止（保存・トースト・学習由来の予想すべて）。データ(settings/learn)は残す
+const LEARN_ENABLED = false;
 function learnPut(it, field, val, how) {
+  if (!LEARN_ENABLED) return;
   if (!it || !LEARN_FIELDS.includes(field)) return;
   const keys = learnKeys(it, field); if (!keys.length) return;
   if (field === 'due') { const n = dueOffsetDays(String(val || '')); if (n === null || n < 0 || n > 14) return; val = String(n); }
