@@ -166,7 +166,7 @@
   .tbl-seizou .cb-check { width: 18px; height: 18px; }
   .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(16px, 1.45vw, 28px); color: #795548; border-right: none !important; font-weight: 700; }
   .tbl-seizou td:last-child, .tbl-seizou th:last-child { border-right: none !important; border-left: none !important; }
-  /* 製造順7・8はまだ先の予定なので薄く表示 */
+  /* 製造順8はまだ先の予定なので薄く表示(9/18 本人指示で7は通常表示) */
   .tbl-seizou tr.ord-faint { opacity: .4; }
 
   .tbl-kanryo thead th { background: #78909c; }
@@ -983,7 +983,7 @@ function render() {
       const row = buildRow(it, 14, cols);
       // 薄表示は1種類だけ: NG行はng-rowのみ（ord-faintと重ねると二重に薄くなる）
       let ordCls = isNgRow(it) ? ' ng-row'
-        : (['7','8'].includes(String(getVal(it,'order'))) ? ' ord-faint' : '');
+        : (String(getVal(it,'order'))==='8' ? ' ord-faint' : '');
       html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${menuBtn}</td></tr>`;
     });
     html += '</tbody></table></div>';
