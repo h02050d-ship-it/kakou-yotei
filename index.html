@@ -384,7 +384,7 @@
   /* 残3営業日=緑（本日赤→残2黄→残3緑の順で迫る）。加在#e0f7fa・明日#ffeb3bとRGB距離100以上 */
   .due-cell-day3 { background: #a5d6a7 !important; }
   .due-cell-day3 .due-disp, .due-cell-day3 .due-or { color: #1b5e20 !important; }
-  /* 休みを挟んで日付が遠く見える時の補足「残2営業日」 */
+  /* 休みを挟んで日付が遠く見える時の補足「残り2営業日」 */
   .due-biz { flex-basis: 100%; text-align: center; font-size: 10px; font-weight: 800; line-height: 1.15; white-space: nowrap; color: #5d4037; }
   .due-cell-day3 .due-biz { color: #1b5e20; }
   .width-alert { background: #ffd54f !important; }
@@ -1780,10 +1780,10 @@ function dueDispHtml(v) {
   else html = '<span class="due-disp multi">' +
     parts.map(p => '<span class="due-d">' + p + '</span>').join('<span class="due-or">or</span>') +
     '</span>';
-  // 休みを挟んで日付が遠く見える行に「残2営業日」「残3営業日」を添える
+  // 休みを挟んで日付が遠く見える行に「残り2営業日」「残り3営業日」を添える
   const remain = dueDayFlag(v);
   if (remain !== null && remain >= 2 && !parts.some(p => p === '本日' || p === '明日')) {
-    html += '<div class="due-biz" title="本日を含めた残り営業日">残' + remain + '営業日</div>';
+    html += '<div class="due-biz" title="本日を含めた残り営業日">残り' + remain + '営業日</div>';
   }
   return html;
 }
