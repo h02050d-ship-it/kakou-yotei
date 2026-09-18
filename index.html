@@ -2274,7 +2274,8 @@ function noukiDuePrompt(it) {
   const n = noukiGroup(it).length;
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:2px solid #c62828;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:12px 18px;max-width:92vw;font-size:14px;line-height:1.6';
-  d.innerHTML = '<b style="color:#c62828">📞 納期連絡してください</b><br>' + e(noukiLabel(it)) + (n > 1 ? `　（同じ取引先・出荷日 ${n} 行）` : '') +
+  const esc = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  d.innerHTML = '<b style="color:#c62828">📞 納期連絡してください</b><br>' + esc(noukiLabel(it)) + (n > 1 ? `　（同じ取引先・出荷日 ${n} 行）` : '') +
     '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">' +
     '<button onclick="closeNoukiToast()" style="padding:6px 12px;border:1px solid #9e9e9e;background:#fff;border-radius:6px;font-size:13px;cursor:pointer">あとで</button>' +
     `<button onclick="noukiToastDone('${k}')" style="padding:6px 12px;border:none;background:#2e7d32;color:#fff;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✅ 連絡しました</button></div>`;
