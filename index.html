@@ -594,6 +594,8 @@ function saveItem(it) {
 }
 
 function saveField(key, field, val) {
+  // サーバー未受信中は画面の値も書き換えない（書き換えると「保存済みに見えて次の受信で戻る」）2026-09-18
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); render(); return; }
   const it = allItems.find(i => itemKey(i) === key);
   if (it) { it[field] = val; saveItem(it); if (field === 'due') ichibaDueNotify(it); }
 }
@@ -627,6 +629,12 @@ function loadData() {
   // キャッシュ表示済みならスピナーで消さない（裏で最新受信→自動で差し替わる）
   if (!allItems.length) main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
 
+  // 接続が切れている間は「更新時刻」の代わりに警告（2026-09-18）
+  db.ref('.info/connected').on('value', s => {
+    const el = document.getElementById('lastUpdated'); if (!el) return;
+    if (s.val() === false && allItems.length) { el.textContent = '⚠ サーバー未接続（前回データ表示中）'; el.style.color = '#c0392b'; }
+    else if (s.val() === true && el.style.color) { el.style.color = ''; }
+  });
   // Listen for real-time changes
   db.ref('items').on('value', snap => {
     liveLoaded = true;   // サーバーの実データ受信＝以後は保存OK
@@ -680,8 +688,8 @@ function loadData() {
     });
 
     // Apply row order
-    db.ref('settings/rowOrder').once('value', roSnap => {
-      const order = roSnap.val() || [];
+    db.ref('settings/rowOrder').once('value').catch(() => null).then(roSnap => {
+      const order = (roSnap && roSnap.val && roSnap.val()) || [];
       if (order.length) {
         allItems.sort((a, b) => {
           const ai = order.indexOf(itemKey(a));
@@ -699,6 +707,11 @@ function loadData() {
       // 起動高速化: 次回起動の即表示用に表示中データを保存
       try { localStorage.setItem(SRV_CACHE_KEY, JSON.stringify({ t: Date.now(), items: allItems, colOrder: colOrder })); } catch (e) {}
     });
+  }, err => {
+    // 2026-09-18 購読が切れた/拒否された時は黙らず表示（以後の保存はliveLoaded=falseで拒否される）
+    liveLoaded = false;
+    const el = document.getElementById('lastUpdated');
+    if (el) { el.textContent = '⚠ サーバー同期失敗（' + (err && err.code || err) + '）前回データ表示中・再読込してください'; el.style.color = '#c0392b'; }
   });
 
   // Listen for col order changes
@@ -2347,6 +2360,8 @@ function onHardDelete(key) {
 }
 
 function onAddRow() {
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); return; }
+  if (onAddRow._busy) return; onAddRow._busy = true; setTimeout(() => { onAddRow._busy = false; }, 1500);   // 連打で行が複数できるのを防ぐ 2026-09-18
   const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const newRow = {
     _uid: uid, order: '4',
@@ -2669,6 +2684,8 @@ function setupSaveAndSeino() { const key = setupKey; setupSave(); openSeinoDesk(
 // 古い参照に対する最後の saveItem が後半の項目（配送・出荷日）を消してしまう。
 // → 変更内容をまとめてから、最新の行オブジェクトに一括で載せて1回だけ保存する。
 function setupSave() {
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度「登録」を押してください。'); return; }   // 2026-09-18 モーダルを閉じずに待たせる
+  if (setupSave._busy) return; setupSave._busy = true; setTimeout(() => { setupSave._busy = false; }, 1500);   // 二重送信ガード
   const key = setupKey, d = setupDraft;
   const cur = allItems.find(i => itemKey(i) === key);
   if (!cur || !d) { closeSetupModal(); return; }
