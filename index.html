@@ -518,9 +518,9 @@
     <div class="sr-body" id="soryoModalBody"></div>
   </div>
 </div>
-<div class="modal-overlay" id="setupModal" onclick="if(event.target===this)closeSetupModal()">
+<div class="modal-overlay" id="setupModal" onclick="if(event.target===this){closeSetupModal();closeChakuModal();}">
   <div class="modal" style="max-width:520px">
-    <div class="modal-head" style="background:#2e7d32">📋 この内容で登録しますか？<button class="modal-close" onclick="closeSetupModal()">&times;</button></div>
+    <div class="modal-head" style="background:#2e7d32">📋 この内容で登録しますか？<button class="modal-close" onclick="closeSetupModal();closeChakuModal()">&times;</button></div>
     <div class="sr-body" id="setupModalBody"></div>
   </div>
 </div>
@@ -2142,6 +2142,7 @@ function openRowMenu(btn, key, ev) {
   const _tk = _it ? getVal(_it, 'tokka') : '';
   const _sr = _it ? getVal(_it, 'soryo') : '';
   const _nk = _it ? String(getVal(_it, 'nouki_renraku') || '') : '';
+  const _ck = _it && getVal(_it, 'chaku') ? fmtDue(String(getVal(_it, 'chaku'))) + (getVal(_it, 'chaku_kbn') ? ' ' + getVal(_it, 'chaku_kbn') : '') : '';
   const nkBtn = _nk === '1' ? `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡（未）→ 連絡した</button>`
     : _nk === 'done' ? `<button class="rm-nouki done" onclick="rowMenuNouki()">📞 納期連絡 済</button>`
     : `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡が要る</button>`;
@@ -2149,6 +2150,7 @@ function openRowMenu(btn, key, ev) {
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
+    `<button class="rm-setup" onclick="rowMenuChaku()">📅 着日指定${_ck?`（${_ck}）`:''}</button>` +
     nkBtn +
     (_it && isSeino(getVal(_it, 'carrier')) ? `<button class="rm-seino" onclick="rowMenuSeino()">🚚 西濃送り状を作る</button>` : '') +
     `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
@@ -2774,6 +2776,62 @@ function renderSetupBody() {
     '<button class="sr-ok st-ok" onclick="setupSave()">この内容で登録</button>' +
     (isSeino(setupDraft.carrier) ? '<button class="sr-ok st-ok" style="background:#e65100" onclick="setupSaveAndSeino()">🚚 登録して西濃送り状を作る</button>' : '') +
     '<button class="sr-cancel" onclick="setupSkip()">あとで</button></div>';
+}
+// ===== 着日指定だけ（📅 行メニュー・2026-09-18 本人指示「着日だけ入れて」）=====
+// 一括設定ポップアップは⋯メニューから外したので、着日指定(chaku/chaku_kbn)だけを入れる小さな画面。枠は setupModal を借りる
+let chakuKey = null, chakuDraft = null;
+function rowMenuChaku() { const key = rowMenuKey; closeRowMenu(); openChakuModal(key); }
+function closeChakuModal() { document.getElementById('setupModal').classList.remove('show'); chakuKey = null; chakuDraft = null; }
+function openChakuModal(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  chakuKey = key;
+  chakuDraft = { chaku: String(getVal(it, 'chaku') || ''), chaku_kbn: String(getVal(it, 'chaku_kbn') || '') };
+  document.getElementById('setupModal').classList.add('show');
+  renderChakuModal();
+}
+function chakuSet(f, v) {
+  if (!chakuDraft) return;
+  chakuDraft[f] = v;
+  if (f === 'chaku' && !v) chakuDraft.chaku_kbn = '';
+  renderChakuModal();
+}
+function renderChakuModal() {
+  const it = allItems.find(i => itemKey(i) === chakuKey);
+  if (!it || !chakuDraft) { closeChakuModal(); return; }
+  const e = t => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const carrier = String(getVal(it, 'carrier') || '').replace(/[\s　]/g, '');
+  const kbns = CHAKU_KBN[carrier] || [];
+  const dim = [getVal(it, 'thickness'), getVal(it, 'width'), getVal(it, 'length')].filter(Boolean).join('×');
+  const chips = '<input type="date" class="st-date" value="' + e(chakuDraft.chaku) + '" onchange="chakuSet(\'chaku\',this.value)">'
+    + '<button class="st-chip ' + (chakuDraft.chaku ? '' : 'on off') + '" onclick="chakuSet(\'chaku\',\'\')">指定なし</button>';
+  const kbnChips = (kbns.length && chakuDraft.chaku)
+    ? '<div class="st-chips" style="margin-top:6px">' + kbns.map(x => '<button class="st-chip ' + (chakuDraft.chaku_kbn === x ? 'on' : '') + '" onclick="chakuSet(\'chaku_kbn\',\'' + x + '\')">' + x + '</button>').join('')
+      + '<button class="st-chip ' + (chakuDraft.chaku_kbn ? '' : 'on off') + '" onclick="chakuSet(\'chaku_kbn\',\'\')">時間指定なし</button></div>'
+    : '';
+  const why = chakuDraft.chaku
+    ? (kbns.length ? '時間帯は' + e(carrier) + 'の区分（' + kbns.join('／') + '）だけ指定できます' : (carrier ? e(carrier) + 'は時間帯の指定ができません（日付のみ）' : '配送が未選択なので日付のみです'))
+    : 'お客様から着日の希望があるときだけ入れてください';
+  document.getElementById('setupModalBody').innerHTML =
+    '<div class="sr-row"><b>' + e(fullName(getVal(it, 'customer')) || getVal(it, 'customer') || '(取引先未入力)') + '</b><br>' +
+    e(HINMEI_NAME[it.hinmei] || it.hinmei || '') + ' ' + e(getVal(it, 'grade')) + '　' + e(dim) +
+    '　予定 <b>' + e(getVal(it, 'planned')) + '束</b>　配送 ' + e(carrier || 'なし') + '　出荷日 ' + e(fmtDue(String(getVal(it, 'due') || '')) || 'なし') + '</div>' +
+    '<div class="st-item"><span class="st-name">📅 着日指定</span>' +
+    '<div class="st-chips">' + chips + '</div>' + kbnChips +
+    '<div class="st-why">' + why + '</div></div>' +
+    '<div class="sr-btns">' +
+    '<button class="sr-ok st-ok" onclick="chakuSave()">登録</button>' +
+    '<button class="sr-cancel" onclick="closeChakuModal()">やめる</button></div>';
+}
+function chakuSave() {
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度「登録」を押してください。'); return; }
+  const it = allItems.find(i => itemKey(i) === chakuKey);
+  const d = chakuDraft;
+  if (!it || !d) { closeChakuModal(); return; }
+  it.chaku = d.chaku || '';
+  it.chaku_kbn = d.chaku ? (d.chaku_kbn || '') : '';
+  saveItem(it);
+  closeChakuModal();
 }
 // 登録したうえで、この行の内容を西濃送り状デスクへ渡して開く
 function setupSaveAndSeino() { const key = setupKey; setupSave(); openSeinoDesk(key); }
