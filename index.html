@@ -717,7 +717,7 @@ function getColOrder() { return colOrder; }
 // ===== Cell renderers =====
 const gradeOpts = ['-','丸節','小節','特上小','無節','無節特上','生節','B丸節','B特上小'];
 const gradeColors = {'丸節':'#d32f2f','小節':'#ef6c00','特上小':'#8e24aa','無節':'#1565c0','無節特上':'#6a1b9a','生節':'#795548','B丸節':'#d32f2f','B特上小':'#8e24aa'};
-const carrierColors = {'西濃':'#e65100','佐川':'#1565c0','内藤':'#6a1b9a','自社':'#d32f2f','引取':'#f9a825'};
+const carrierColors = {'西濃':'#e65100','佐川':'#1565c0','内藤':'#6a1b9a','自社':'#d32f2f','引取':'#f9a825','郵便':'#00838f'};
 // 長さ→入数の選択肢（先頭がデフォルト）。該当する長さでは他の選択肢を出さない（＋その他）。
 const QTY_BY_LENGTH = {'910':['20','40'],'1820':['10'],'2000':['8'],'3000':['10'],'4000':['8'],'300':['2','10']};
 function qtyOptsFor(it){ return QTY_BY_LENGTH[String(getVal(it,'length'))] || ['-','8','10','20','40','2']; }
@@ -850,7 +850,7 @@ function cellRenderers(it, sz) {
     ryoutan: `<div class="mark-toggle mt-kiri ${getVal(it,'ryoutan')==='1'?'on':''}" data-key="${k}" data-field="ryoutan" onclick="onMarkToggle(this)">${getVal(it,'ryoutan')==='1'?'切':''}</div>`,
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
     zaiko: `<div class="mark-toggle mt-zaiko ${getVal(it,'zaiko')==='1'?'on':''}" data-key="${k}" data-field="zaiko" onclick="onMarkToggle(this)">${getVal(it,'zaiko')==='1'?'有':''}</div>`,
-    carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取'],sz,'',carrierColors),
+    carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取','郵便'],sz,'',carrierColors),
     due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}${chakuDispHtml(it)}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
@@ -2465,7 +2465,10 @@ function isoAfter(days) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 // 予定に束数が入ったとき。1行につき1回だけ自動で出す（あとは行メニューから開ける）
+// 2026-09-18 本人指示「この表示でないようにして」＝自動表示を停止。行メニュー「📋 シール・配送・出荷日」からは今まで通り開ける
+const SETUP_AUTO_OPEN = false;
 function maybeOpenSetup(key, val) {
+  if (!SETUP_AUTO_OPEN) return;
   const n = parseInt(String(val).replace(/[^0-9]/g, ''), 10);
   if (isNaN(n) || n < 1) return;
   const it = allItems.find(i => itemKey(i) === key);
@@ -2497,7 +2500,7 @@ function openSetupModal(key) {
   });
 }
 const SEAL_SEINO_WHY = '西濃はシールなし';
-// 着日の時間帯は運送会社の区分に合わせる（西濃=午前/午後の2区分、佐川=時間帯枠）。内藤/自社/引取は日付のみ
+// 着日の時間帯は運送会社の区分に合わせる（西濃=午前/午後の2区分、佐川=時間帯枠）。内藤/自社/引取/郵便は日付のみ
 const CHAKU_KBN = { '西濃': ['午前', '午後'], '佐川': ['午前中', '12-14', '14-16', '16-18', '18-20', '19-21'] };
 function guessChaku(it) {
   const cur = String(getVal(it, 'chaku') || '');
@@ -2546,7 +2549,7 @@ function renderSetupBody() {
       '<button class="st-chip ' + (on ? '' : 'on off') + '" onclick="setupSet(\'' + f + '\',\'無\')">無</button>' +
       '</div><div class="st-why">' + e(setupWhy[f]) + forget(f) + '</div></div>';
   };
-  const carChips = ['内藤', '西濃', '佐川', '自社', '引取'].map(c => {
+  const carChips = ['内藤', '西濃', '佐川', '自社', '引取', '郵便'].map(c => {
     const on = setupDraft.carrier === c;
     const col = carrierColors[c] || '#2e7d32';
     return '<button class="st-chip ' + (on ? 'on' : '') + '"' +
