@@ -246,6 +246,11 @@
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
   .btn-rowmenu.has-soryo { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
+  .btn-rowmenu.has-nouki { border-color: #c62828; color: #c62828; background: #ffebee; }
+  .rowmenu-pop button.rm-nouki { color: #c62828; }
+  .rowmenu-pop button.rm-nouki:hover { background: #ffebee; }
+  .rowmenu-pop button.rm-nouki.done { color: #2e7d32; }
+  .rowmenu-pop button.rm-nouki.done:hover { background: #e8f5e9; }
   .rowmenu-pop button.rm-tokka { color: #2e7d32; }
   .rowmenu-pop button.rm-tokka:hover { background: #e8f5e9; }
   .rowmenu-pop button.rm-soryo { color: #1565c0; }
@@ -479,6 +484,7 @@
 </style>
 <script src="https://h02050d-ship-it.github.io/tool-portal/netguard.js"></script>
 <script src="https://h02050d-ship-it.github.io/tool-portal/tu.js" defer></script>
+<script src="https://h02050d-ship-it.github.io/tool-portal/yobo.js" defer></script>
 </head>
 <body>
 <div class="header">
@@ -586,7 +592,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_mail','due_mail_at'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
     data[f] = (it[f] !== undefined && it[f] !== '') ? it[f] : null;   // 空は削除(null)
   });
   // set(丸ごと)ではなく update(既知の項目だけ)にする。古いキャッシュ版ページ(SWRで更新直後は旧版が1回出る)が
@@ -598,7 +604,7 @@ function saveField(key, field, val) {
   // サーバー未受信中は画面の値も書き換えない（書き換えると「保存済みに見えて次の受信で戻る」）2026-09-18
   if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); render(); return; }
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it[field] = val; saveItem(it); if (field === 'due') ichibaDueNotify(it); }
+  if (it) { it[field] = val; saveItem(it); if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); } }
 }
 
 // 市場系(EC以外)の行に出荷日が入ったら、納品書GASが取引先マスタ(取引方法=市売)で判定して
@@ -2111,11 +2117,12 @@ function rowMenuBtnHtml(it, k) {
   const hasNote = !!getVal(it, 'important_note');
   const hasTokka = !!getVal(it, 'tokka');
   const hasSoryo = !!getVal(it, 'soryo');
-  const title = (hasNote ? '⚠️忘れちゃいけないメモあり・' : '')
+  const hasNouki = String(getVal(it, 'nouki_renraku')) === '1';
+  const title = (hasNouki ? '📞納期連絡 未・' : '') + (hasNote ? '⚠️忘れちゃいけないメモあり・' : '')
     + (hasTokka ? `💴特価${getVal(it,'tokka')}円・` : '')
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
-  const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '');
+  const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
   return `<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button>`;
 }
 
@@ -2134,11 +2141,15 @@ function openRowMenu(btn, key, ev) {
   const _it = allItems.find(i => itemKey(i) === key);
   const _tk = _it ? getVal(_it, 'tokka') : '';
   const _sr = _it ? getVal(_it, 'soryo') : '';
+  const _nk = _it ? String(getVal(_it, 'nouki_renraku') || '') : '';
+  const nkBtn = _nk === '1' ? `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡（未）→ 連絡した</button>`
+    : _nk === 'done' ? `<button class="rm-nouki done" onclick="rowMenuNouki()">📞 納期連絡 済</button>`
+    : `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡が要る</button>`;
   m.innerHTML =
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
-    `<button class="rm-setup" onclick="rowMenuSetup()">📋 シール・配送・出荷日・着日</button>` +
+    nkBtn +
     (_it && isSeino(getVal(_it, 'carrier')) ? `<button class="rm-seino" onclick="rowMenuSeino()">🚚 西濃送り状を作る</button>` : '') +
     `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
@@ -2158,7 +2169,7 @@ function rowMenuCopy() {
   const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const copy = { _uid: uid };
   ['order','customer','hinmei','grade','thickness','width','length','qty','planned',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','remark','important_note'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','carrier','due','remark','important_note','nouki_renraku'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') copy[f] = it[f];
   });
   copy.actual = '-';   // コピーは未加工扱いに（実際はリセット）
@@ -2190,6 +2201,91 @@ function rowMenuTokka() {
   // 束単価として1,000円未満・50,000円超は桁違いのおそれ
   if ((n < 1000 || n > 50000) && !confirm(`特価 ${n.toLocaleString()}円は桁が違いませんか？（束単価）\nこのまま設定しますか？`)) return;
   saveField(key, 'tokka', String(n));
+}
+// ===== 納期連絡（📞 行メニュー・2026-09-18 本人指示）=====
+// nouki_renraku: '1'=連絡が要る(未) / 'done'=連絡済 / ''=なし。
+// '1' の間は備考に「納期連絡」が付く（納品書・現場の人にも見える）。出荷日が入った時にポップアップで促し、
+// 「連絡した」で同じ取引先・同じ出荷日の行もまとめて済にして備考の「納期連絡」を消す。
+const NOUKI_NOTE = '納期連絡';
+function applyNoukiNote(it) {
+  if (!it) return false;
+  const cur = String(it.remark || '');
+  const has = cur.includes(NOUKI_NOTE);
+  const need = String(it.nouki_renraku || '') === '1';
+  if (need === has) return false;
+  it.remark = need
+    ? (cur ? cur + ' ' + NOUKI_NOTE : NOUKI_NOTE)
+    : cur.split(NOUKI_NOTE).join('').replace(/\s+/g, ' ').trim();
+  return true;
+}
+function noukiLabel(it) {
+  const due = String(getVal(it, 'due') || '').trim();
+  return String(getVal(it, 'customer') || '').trim() + (due ? '　出荷日 ' + fmtDue(due) : '　（出荷日 未入力）');
+}
+// 同じ取引先・同じ出荷日で「未」の行（自分を含む）
+function noukiGroup(it) {
+  const c = String(getVal(it, 'customer') || '').trim(), d = String(getVal(it, 'due') || '').trim();
+  return allItems.filter(x => String(getVal(x, 'nouki_renraku') || '') === '1'
+    && String(getVal(x, 'customer') || '').trim() === c
+    && String(getVal(x, 'due') || '').trim() === d
+    && String(getVal(x, 'archived') || '') !== '1');
+}
+function noukiMarkDone(it) {
+  const grp = noukiGroup(it);
+  if (!grp.some(x => itemKey(x) === itemKey(it))) grp.push(it);
+  grp.forEach(x => { x.nouki_renraku = 'done'; applyNoukiNote(x); saveItem(x); });
+  closeNoukiToast();
+  return grp.length;
+}
+function rowMenuNouki() {
+  const key = rowMenuKey;
+  const it = allItems.find(i => itemKey(i) === key);
+  closeRowMenu();
+  if (!it) return;
+  const st = String(getVal(it, 'nouki_renraku') || '');
+  if (st === '1') {
+    const n = noukiGroup(it).length;
+    if (confirm(noukiLabel(it) + '\n\n納期連絡はしましたか？\n' + (n > 1 ? `同じ取引先・同じ出荷日の ${n} 行をまとめて連絡済みにします。` : 'この行を連絡済みにします。'))) {
+      noukiMarkDone(it);
+      return;
+    }
+    if (confirm('納期連絡の印を外しますか？（連絡不要にする）')) {
+      it.nouki_renraku = ''; applyNoukiNote(it); saveItem(it);
+    }
+    return;
+  }
+  if (st === 'done') {
+    if (confirm(noukiLabel(it) + '\n\n連絡済みです。「未連絡」に戻しますか？')) {
+      it.nouki_renraku = '1'; applyNoukiNote(it); saveItem(it);
+    }
+    return;
+  }
+  it.nouki_renraku = '1'; applyNoukiNote(it); saveItem(it);
+  noukiDuePrompt(it);   // すでに出荷日が入っていれば今すぐ促す
+}
+// 出荷日が入った時: 納期連絡の印がある行ならポップアップで促す（同じ取引先・出荷日は1回にまとめる）
+let noukiToastEl = null;
+function closeNoukiToast() { if (noukiToastEl) { noukiToastEl.remove(); noukiToastEl = null; } }
+function noukiDuePrompt(it) {
+  if (!it || String(getVal(it, 'nouki_renraku') || '') !== '1') return;
+  if (!String(getVal(it, 'due') || '').trim()) return;
+  closeNoukiToast();
+  const k = itemKey(it);
+  const n = noukiGroup(it).length;
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:2px solid #c62828;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:12px 18px;max-width:92vw;font-size:14px;line-height:1.6';
+  d.innerHTML = '<b style="color:#c62828">📞 納期連絡してください</b><br>' + e(noukiLabel(it)) + (n > 1 ? `　（同じ取引先・出荷日 ${n} 行）` : '') +
+    '<div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">' +
+    '<button onclick="closeNoukiToast()" style="padding:6px 12px;border:1px solid #9e9e9e;background:#fff;border-radius:6px;font-size:13px;cursor:pointer">あとで</button>' +
+    `<button onclick="noukiToastDone('${k}')" style="padding:6px 12px;border:none;background:#2e7d32;color:#fff;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✅ 連絡しました</button></div>`;
+  d.addEventListener('click', ev => ev.stopPropagation());
+  document.body.appendChild(d);
+  noukiToastEl = d;
+}
+function noukiToastDone(key) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) { closeNoukiToast(); return; }
+  noukiMarkDone(it);
 }
 // ===== 送料設定（🚚 行メニュー）=====
 // この行に紐づく送料。納品書作成時に「運賃(税抜)」へ自動で入る。
@@ -2701,7 +2797,7 @@ function setupSave() {
   changes.forEach(p => { it[p[0]] = p[1]; });
   it.setup_done = '1';
   saveItem(it);
-  if (changes.some(p => p[0] === 'due')) ichibaDueNotify(it);   // 一括設定で出荷日が入った→市場系なら納期連絡メール
+  if (changes.some(p => p[0] === 'due')) { ichibaDueNotify(it); noukiDuePrompt(it); }   // 一括設定で出荷日が入った→市場系なら納期連絡メール／納期連絡の印があればポップアップ
   // 学習: 予想と違う値を人が選んだ→覚える。学習由来の予想をそのまま登録→確認回数を足す
   const pred = setupPred || {}, lrn = setupLearn || {};
   LEARN_FIELDS.forEach(f => {
