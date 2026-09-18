@@ -381,6 +381,12 @@
   .due-cell-today .due-disp, .due-cell-today .due-or { color: #fff !important; }
   .due-cell-tomorrow { background: #ffeb3b !important; }
   .due-cell-tomorrow .due-disp, .due-cell-tomorrow .due-or { color: #5d4037 !important; }
+  /* 残3営業日=緑（本日赤→残2黄→残3緑の順で迫る）。加在#e0f7fa・明日#ffeb3bとRGB距離100以上 */
+  .due-cell-day3 { background: #a5d6a7 !important; }
+  .due-cell-day3 .due-disp, .due-cell-day3 .due-or { color: #1b5e20 !important; }
+  /* 休みを挟んで日付が遠く見える時の補足「残2営業日」 */
+  .due-biz { flex-basis: 100%; text-align: center; font-size: 10px; font-weight: 800; line-height: 1.15; white-space: nowrap; color: #5d4037; }
+  .due-cell-day3 .due-biz { color: #1b5e20; }
   .width-alert { background: #ffd54f !important; }
   .thick-f12 { background: #ffd600 !important; }  /* F×12mmの厚セル＝Fバッジと同じ黄（明るめ） */
 
@@ -885,8 +891,9 @@ function buildRow(it, sz, cols, opts) {
     if (col === 'thickness' && getVal(it,'hinmei') === 'F' && String(getVal(it,'thickness')) === '12') classes.push('thick-f12');
     if (col === 'due') {
       const df = dueDayFlag(getVal(it,'due'));
-      if (df === 0) classes.push('due-cell-today');
-      else if (df === 1) classes.push('due-cell-tomorrow');
+      if (df === 1) classes.push('due-cell-today');
+      else if (df === 2) classes.push('due-cell-tomorrow');
+      else if (df === 3) classes.push('due-cell-day3');
     }
     const clsAttr = classes.length ? ` class="${classes.join(' ')}"` : '';
     return `<td${clsAttr}>${r[col]}</td>`;
@@ -1652,6 +1659,62 @@ function onSealToggle(el){
 // 出荷日: ISO(yyyy-mm-dd、複数はカンマ区切り)で保存し「7/7㈫ or 7/9㈭」形式で表示
 // 当日は「本日」(赤)、翌日は「明日」(黄)に置き換える。日付が変われば自動で繰り上がる（watchDayChange）
 const DUE_WD = ['㈰','㈪','㈫','㈬','㈭','㈮','㈯'];
+// ===== 営業日カレンダー（出荷日の「残り営業日」表示用）=====
+// 休み＝日曜・土曜(BIZ_SAT=falseのとき)・日本の祝日・会社休業日。年末年始/お盆などはCOMPANY_HOLIDAYSにISOで追加
+const BIZ_SAT = false;
+const COMPANY_HOLIDAYS = [];
+const _holCache = {};
+function jpHolidaySet(y) {
+  if (_holCache[y]) return _holCache[y];
+  const H = {};
+  const iso = (m, d) => y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2);
+  const add = (m, d) => { H[iso(m, d)] = 1; };
+  const nthMon = (m, n) => { const w = new Date(y, m - 1, 1).getDay(); return 1 + ((8 - w) % 7) + (n - 1) * 7; };
+  add(1, 1); add(1, nthMon(1, 2)); add(2, 11); add(2, 23);
+  add(3, Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)));
+  add(4, 29); add(5, 3); add(5, 4); add(5, 5);
+  add(7, nthMon(7, 3)); add(8, 11); add(9, nthMon(9, 3));
+  add(9, Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)));
+  add(10, nthMon(10, 2)); add(11, 3); add(11, 23);
+  // 振替休日（祝日が日曜→翌平日）
+  Object.keys(H).forEach(k => {
+    const d = new Date(k + 'T00:00:00');
+    if (d.getDay() === 0) { const n = new Date(d); do { n.setDate(n.getDate() + 1); } while (H[isoDate(n)]); H[isoDate(n)] = 1; }
+  });
+  // 国民の休日（祝日に挟まれた平日）
+  Object.keys(H).forEach(k => {
+    const d = new Date(k + 'T00:00:00'); const n = new Date(d); n.setDate(n.getDate() + 2);
+    if (H[isoDate(n)]) { const m = new Date(d); m.setDate(m.getDate() + 1); if (m.getDay() !== 0 && !H[isoDate(m)]) H[isoDate(m)] = 1; }
+  });
+  COMPANY_HOLIDAYS.forEach(k => { if (k.startsWith(y + '-')) H[k] = 1; });
+  _holCache[y] = H;
+  return H;
+}
+function isoDate(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function isWorkDay(d) {
+  const w = d.getDay();
+  if (w === 0 || (w === 6 && !BIZ_SAT)) return false;
+  return !jpHolidaySet(d.getFullYear())[isoDate(d)];
+}
+// 休みの名前（カレンダー警告用）: '' なら営業日
+function dayOffName(d) {
+  const w = d.getDay();
+  if (w === 0) return '日曜';
+  if (jpHolidaySet(d.getFullYear())[isoDate(d)]) return COMPANY_HOLIDAYS.includes(isoDate(d)) ? '休業日' : '祝日';
+  if (w === 6 && !BIZ_SAT) return '土曜';
+  return '';
+}
+// 出荷日までの「残り営業日」＝本日を1、その日付自身も1と数え、間の休みは数えない
+// 本日=1 / 翌営業日=2（休みを挟んでも2） / 翌々営業日=3。過去日・不正は null
+function dueBizRemain(iso) {
+  const n = dueOffsetDays(iso);
+  if (n === null || n < 0) return null;
+  if (n === 0) return 1;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  let cnt = 0;
+  for (let i = 1; i < n; i++) { const d = new Date(t); d.setDate(d.getDate() + i); if (isWorkDay(d)) cnt++; }
+  return cnt + 2;
+}
 // その日付が今日から何日後か。0=本日 1=明日。日付として読めなければ null
 function dueOffsetDays(iso) {
   const d = new Date(iso + 'T00:00:00');
@@ -1660,12 +1723,12 @@ function dueOffsetDays(iso) {
   d.setHours(0,0,0,0);
   return Math.round((d - t) / 86400000);
 }
-// セル背景用: 複数日のうち一番近い日を採用。0=本日 1=明日 それ以外は null
+// セル背景用: 複数日のうち一番近い日を採用。残り営業日 1=本日(赤) 2=翌営業日(黄) 3=翌々営業日(緑) それ以外は null
 function dueDayFlag(v) {
   let best = null;
   String(v || '').split(',').filter(Boolean).forEach(s => {
-    const n = dueOffsetDays(s);
-    if (n === 0 || n === 1) best = (best === null) ? n : Math.min(best, n);
+    const n = dueBizRemain(s);
+    if (n !== null && n <= 3) best = (best === null) ? n : Math.min(best, n);
   });
   return best;
 }
@@ -1698,10 +1761,17 @@ function dueDispHtml(v) {
   const arr = String(v || '').split(',').filter(Boolean);
   if (!arr.length) return '<span class="due-disp">-</span>';
   const parts = arr.map(s => dueLabel(s));
-  if (parts.length === 1) return '<span class="due-disp">' + parts[0] + '</span>';
-  return '<span class="due-disp multi">' +
+  let html;
+  if (parts.length === 1) html = '<span class="due-disp">' + parts[0] + '</span>';
+  else html = '<span class="due-disp multi">' +
     parts.map(p => '<span class="due-d">' + p + '</span>').join('<span class="due-or">or</span>') +
     '</span>';
+  // 休みを挟んで日付が遠く見える行に「残2営業日」「残3営業日」を添える
+  const remain = dueDayFlag(v);
+  if (remain !== null && remain >= 2 && !parts.some(p => p === '本日' || p === '明日')) {
+    html += '<div class="due-biz" title="本日を含めた残り営業日">残' + remain + '営業日</div>';
+  }
+  return html;
 }
 
 // ===== 納期の自前カレンダー（複数選択チェックで2日までor選択） =====
@@ -1761,9 +1831,9 @@ function dueDateConfirm(iso) {
   const d = new Date(iso + 'T00:00:00');
   if (isNaN(d)) return true;
   const t = new Date(); t.setHours(0, 0, 0, 0);
-  const past = d < t, sun = d.getDay() === 0;
-  if (!past && !sun) return true;
-  const why = past && sun ? '日曜（過去日）' : (sun ? '日曜' : '過去日');
+  const past = d < t, off = dayOffName(d);
+  if (!past && !off) return true;
+  const why = past && off ? off + '（過去日）' : (off || '過去日');
   return confirm(`⚠️ ${d.getMonth() + 1}/${d.getDate()} は${why}です。この出荷日でよいですか？`);
 }
 function duePick(iso) {
