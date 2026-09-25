@@ -255,6 +255,7 @@
   .rm-tag.t-tokka { color: #2e7d32; background: #e8f5e9; }
   .rm-tag.t-soryo { color: #1565c0; background: #e3f2fd; }
   .rm-tag.t-chaku { color: #e65100; background: #fff3e0; }
+  .rm-tag.t-shk { color: #6a1b9a; background: #f3e5f5; }
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
   .btn-rowmenu.has-soryo { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
@@ -2157,6 +2158,7 @@ function rowMenuTags(it) {
   if (getVal(it, 'tokka')) t.push(['tokka', '特価']);
   if (getVal(it, 'soryo')) t.push(['soryo', '送料']);
   if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
+  if (shkPending(it)) t.push(['shk', '通知']);
   return t;
 }
 // ⋯列の幅: タグが一番多い行に合わせて広げる（タグ無しは従来の2%）
@@ -2174,7 +2176,8 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
-  const tags = rowMenuTags(it).map(([c, l]) => `<span class="rm-tag t-${c}">${l}</span>`).join('');
+  const TAG_TIP = { nouki: '納期連絡 未', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '出荷通知（出荷依頼）まだ' };
+  const tags = rowMenuTags(it).map(([c, l]) => `<span class="rm-tag t-${c}" title="${TAG_TIP[c]}">${l}</span>`).join('');
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
 }
 
@@ -3163,7 +3166,13 @@ function shkBun(it){
   const p=shkNum(it.planned); return p!=null?p:shkNum(it.actual);
 }
 function shkSkip(c){ return /^(ヤフ|楽天|ネット)/.test((c||'').trim()); }
-function shkNew(it){ return !it.shk_sent; }              // まだ送信していない＝新規
+function shkNew(it){ return !it.shk_sent; }
+// 出荷通知(出荷依頼)がまだの行＝出荷依頼で既定ONになる行(内藤・2/3/4m・EC/西濃以外・自社配送が多い取引先を除く)のうち未送信
+function shkPending(it){
+  if(!shkNew(it) || it.archived==='1') return false;
+  if(!shkCand(it)) return false;
+  return shkRowOn(it, (it.customer||'').trim());
+}              // まだ送信していない＝新規
 // 🆕NEWマークは廃止（2026-09-10 本人指示）。送信文にも付けない。
 // 送信文の手動編集モード。trueの間はrenderShukkaTextで自動上書きしない（手直しを保持）。
 let shkManual=false;
@@ -3180,8 +3189,8 @@ function toggleShkEdit(btn){
   }
 }
 function shkStatusLabel(it){ return shkDone(it)?'完了':'未完了'; }
-function shkCandidates(){
-  return allItems.filter(it=>{ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; if((it.carrier||'')==='西濃') return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true; });
+function shkCandidates(){ return allItems.filter(shkCand); }
+function shkCand(it){ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; if((it.carrier||'')==='西濃') return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true;
 }
 // 取引先ごとにグループ化。各群内は完了→未完了、長さ昇順。
 function shkGroups(items){
