@@ -77,6 +77,13 @@
   .due-cell-today .chaku-disp { color: #ffe0b2; }
   .rowmenu-pop button.rm-seino { color: #e65100; }
   .rowmenu-pop button.rm-seino:hover { background: #fff3e0; }
+  /* ⋯メニュー先頭の発注ソース（FAX/メール/EC注文を別タブで開く 2026-09-26） */
+  .rowmenu-pop .rm-src { padding: 4px 10px 6px; border-bottom: 1px solid #eee; margin-bottom: 2px; font-size: 12px; color: #666; max-width: 340px; }
+  .rowmenu-pop .rm-src .rm-src-h { font-weight: 800; color: #455a64; margin-bottom: 2px; }
+  .rowmenu-pop .rm-src a { display: block; padding: 4px 6px; margin: 1px -6px; border-radius: 4px; color: #1565c0; font-weight: 700; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rowmenu-pop .rm-src a:hover { background: #e3f2fd; }
+  .rowmenu-pop .rm-src a .rm-src-t { font-size: 10px; font-weight: 700; color: #fff; background: #2e7d32; border-radius: 3px; padding: 0 4px; margin-left: 4px; }
+  .rowmenu-pop .rm-src a .rm-src-d { font-size: 10px; font-weight: 600; color: #888; margin-left: 4px; }
   .due-disp { font-weight: 800; color: #00695c; white-space: nowrap; }
   .due-disp.multi {
     display: inline-flex; flex-direction: column; align-items: center;
@@ -2203,6 +2210,7 @@ function openRowMenu(btn, key, ev) {
     : _nk === 'done' ? `<button class="rm-nouki done" onclick="rowMenuNouki()">📞 納期連絡 済</button>`
     : `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡が要る</button>`;
   m.innerHTML =
+    `<div class="rm-src"><div class="rm-src-h">📎 発注ソース</div><span class="rm-src-body">探しています…</span></div>` +
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
@@ -2219,6 +2227,28 @@ function openRowMenu(btn, key, ev) {
   m.style.left = Math.max(6, left) + 'px';
   m.style.top = Math.max(6, top) + 'px';
   rowMenuEl = m;
+  loadRowSrc(key, m);
+}
+// 発注ソース（元のFAX・メール・EC注文）を納品書GAS kaichkSrc で引いて⋯メニューにリンク表示（別タブ）。10分キャッシュ
+const rowSrcCache = {};
+function loadRowSrc(key, m) {
+  const body = m.querySelector('.rm-src-body'); if (!body) return;
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const show = d => {
+    if (rowMenuEl !== m) return;   // もう閉じた／別の行
+    if (!d || d.error) { body.textContent = '読み込めませんでした' + (d && d.error ? '（' + d.error + '）' : ''); return; }
+    const list = d.sources || [];
+    if (!list.length) { body.textContent = String(key).startsWith('od_') ? '見つかりません' : '見つかりません（取引先名・日付で紐づく FAX／メールなし）'; return; }
+    body.innerHTML = list.map(x => `<a href="${esc(x.url)}" target="_blank" rel="noopener" title="${esc(x.summary || x.label)}">${esc(x.label)}${x.ai ? '<span class="rm-src-t" title="AIチェックがこの原本で照合済み">照合</span>' : ''}${x.docType && !/^(注文|対象外)$/.test(x.docType) ? `<span class="rm-src-d">${esc(x.docType)}</span>` : ''}</a>`).join('')
+      + (list.length > 1 && !String(key).startsWith('od_') ? '<div style="font-size:10px;color:#999;margin-top:2px">取引先名と日付で推定した候補（上ほど有力）</div>' : '');
+    const r = m.getBoundingClientRect();
+    if (r.bottom > window.innerHeight - 6) m.style.top = Math.max(6, window.innerHeight - r.height - 6) + 'px';
+  };
+  const c = rowSrcCache[key];
+  if (c && Date.now() - c.at < 600000) { show(c.d); return; }
+  fetch(GAS_URL + '?action=kaichkSrc&uid=' + encodeURIComponent(key) + nouhinAuth_())
+    .then(r => r.json()).then(d => { if (d && !d.error) rowSrcCache[key] = { at: Date.now(), d }; show(d); })
+    .catch(() => show(null));
 }
 function rowMenuCopy() {
   const it = allItems.find(i => itemKey(i) === rowMenuKey);
