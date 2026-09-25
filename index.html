@@ -214,6 +214,10 @@
   /* 加工NGの行: バッジは通常色のまま、それ以外の文字を薄く */
   .tbl-seizou tr.ng-row td { opacity: .4; }
   .tbl-seizou tr.ng-row td:has(.ord-ng) { opacity: 1; }
+  /* 製造順で人が選んだ「加工NG」: プルダウンのまま赤字（数字に戻せる） */
+  .sel-ord.sel-ord-ng { background: #ffebee; color: #c62828; font-weight: 800; border: 1px solid #c62828; width: 100%; min-width: 0; box-sizing: border-box; padding: 2px 0; text-align: center; text-align-last: center; font-size: clamp(10px, 0.85vw, 15px); letter-spacing: -1px; }
+  .tbl-seizou tr.ng-row td:has(.sel-ord-ng) { opacity: 1; }
+  .tbl-seizou tr.ng-row td:has(.rm-cell) { opacity: 1; }
   .sel-jun { background: #fff3e0; color: #e65100; font-weight: 800; border-radius: 6px; width: auto; padding: 2px 10px; min-width: 2.5em; }
 
   /* 自前ドロップダウン（常に下方向に開く） */
@@ -243,6 +247,14 @@
     padding: 2px 9px; font-size: 16px; font-weight: 800; line-height: 1; cursor: pointer;
   }
   .btn-rowmenu:hover { background: #eee; color: #333; }
+  /* ⋯の左に並べる設定済みタグ（納期・メモ・特価・送料・着日） */
+  .rm-cell { display: flex; align-items: center; justify-content: flex-end; gap: 2px; white-space: nowrap; }
+  .rm-tag { font-size: 9px; font-weight: 800; line-height: 1; padding: 2px 2px; border-radius: 3px; border: 1px solid currentColor; letter-spacing: -0.5px; }
+  .rm-tag.t-nouki { color: #c62828; background: #ffebee; }
+  .rm-tag.t-note { color: #f57f17; background: #fff8e1; }
+  .rm-tag.t-tokka { color: #2e7d32; background: #e8f5e9; }
+  .rm-tag.t-soryo { color: #1565c0; background: #e3f2fd; }
+  .rm-tag.t-chaku { color: #e65100; background: #fff3e0; }
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
   .btn-rowmenu.has-soryo { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
@@ -691,6 +703,8 @@ function loadData() {
         it.ord_base = JSON.stringify(base);
         dirty = true;
       }
+      // 市場×西濃で送料が未設定なら備考に「送料設定してください」（設定・配送変更で自動で消える）
+      if (applySoryoNote(it)) dirty = true;
       if (dirty) saveItem(it);
     });
 
@@ -856,9 +870,9 @@ function cellRenderers(it, sz) {
         return `<span class="ord-ng" title="${av}中のため加工NG（確認が取れると製造順4に入ります）">加工NG</span>`;
       }
       // 0は廃止（既存データに0や空が残っている行だけ、その値も選択肢に出す）
-      const ordOpts = ['1','2','3','4','5','6','7','8','9'];
+      const ordOpts = ['1','2','3','4','5','6','7','8','9',ORD_NG];
       if (String(ordCur) !== '' && !ordOpts.includes(String(ordCur))) ordOpts.unshift(String(ordCur));
-      return `<select class="sel sel-ord" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${ordOpts.map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`;
+      return `<select class="sel sel-ord${String(ordCur)===ORD_NG?' sel-ord-ng':''}" data-key="${k}" data-field="order" onchange="onOrdChange(this)">${ordOpts.map(n=>`<option value="${n}" ${String(ordCur)===String(n)?'selected':''}>${n}</option>`).join('')}</select>`;
     })(),
     customer: `<td class="cust${String(getVal(it,'nouhin_pre'))==='1'?' nouhin-pre':''}" ${ea('customer')} ${String(getVal(it,'nouhin_pre'))==='1'?'title="納品書作成済（事前）"':''}>${e(getVal(it,'customer'))}</td>`,
     hinmei: `<select class="sel sel-hm" style="background:${bg};color:${tc}" data-key="${k}" data-field="hinmei" onchange="onHmChange(this)"><option value="-" ${cur==='-'?'selected':''}>-</option><option value="F" ${cur==='F'?'selected':''}>F</option><option value="P" ${cur==='P'?'selected':''}>P</option><option value="N" ${cur==='N'?'selected':''}>N</option><option value="S" ${cur==='S'?'selected':''}>S</option></select>`,
@@ -941,7 +955,7 @@ function render() {
 
   const items = allItems.map(it => {
     const ord = parseInt(getVal(it,'order'));
-    let eff = isNaN(ord) ? 99 : ord;
+    let eff = isOrdNg(it) ? 8.5 : (isNaN(ord) ? 99 : ord);   // 人が選んだ加工NG＝製造順8の後ろ
     // 配送確認/支払確認中＝加工NG。完了(9以上)でなければ並びは製造順7の位置に固定（結束予定からも外れる）
     // ただし製造順8、および人が加工工程へ入れた1〜3の行はその位置のまま
     if (eff >= 4 && eff < 8 && isConfirmState(it)) eff = 7;
@@ -982,14 +996,14 @@ function render() {
   if (seizouchu.length) {
     html += `<div class="table-scroll"><table class="tbl-seizou" id="tbl-seizou"><thead><tr><th style="width:1.5%"></th>`;
     cols.forEach((c,i) => { const w = COL_WIDTHS[c] ? ` style="width:${COL_WIDTHS[c]}"` : ''; html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="seizou"${w}>${COL_LABELS[c]||c}</th>`; });
-    html += `<th style="width:2%"></th></tr></thead><tbody>`;
+    html += `<th style="width:${menuColW(seizouchu)}"></th></tr></thead><tbody>`;
     seizouchu.forEach((it, idx) => {
       const k = itemKey(it);
       const cust = getVal(it, 'customer');
       const menuBtn = rowMenuBtnHtml(it, k);
       const row = buildRow(it, 14, cols);
       // 薄表示は1種類だけ: NG行はng-rowのみ（ord-faintと重ねると二重に薄くなる）
-      let ordCls = isNgRow(it) ? ' ng-row'
+      let ordCls = (isNgRow(it) || isOrdNg(it)) ? ' ng-row'
         : (String(getVal(it,'order'))==='8' ? ' ord-faint' : '');
       html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${menuBtn}</td></tr>`;
     });
@@ -1017,7 +1031,7 @@ function render() {
     kanryoCols.forEach((c,i) => {
       html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
     });
-    html += `<th style="width:2%"></th><th></th></tr></thead><tbody>`;
+    html += `<th style="width:${menuColW(kanryoVisible)}"></th><th></th></tr></thead><tbody>`;
     kanryoVisible.forEach(it => {
       const k = itemKey(it);
       html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
@@ -1534,7 +1548,7 @@ function isConfirmState(it) {
 function isNgRow(it) {
   if (String(itemKey(it)).startsWith('od_') && getVal(it, 'humanchk') !== '1') return false;
   if (!isConfirmState(it)) return false;
-  return !['1','2','3','8'].includes(String(getVal(it, 'order')));
+  return !['1','2','3','8',ORD_NG].includes(String(getVal(it, 'order')));
 }
 // 行が確認状態のとき、現在の仕様を注文内容の基準として記録
 function captureOrdBase(it) {
@@ -1668,6 +1682,29 @@ function autoTapeNote(key, field) {
   if (field && field !== 'grade' && field !== 'customer') return;
   const it = allItems.find(i => itemKey(i) === key);
   if (applyTapeNote(it)) saveItem(it);
+}
+// 製造順の選択肢「加工NG」（人が選ぶ・一番最後）。並びは製造順8の後ろ、製造完了・納品書候補には入れない
+const ORD_NG = '加工NG';
+function isOrdNg(it) { return String(getVal(it, 'order')) === ORD_NG; }
+// 市場(ネット/楽天/ヤフ以外)×西濃で送料が未設定 → 備考に「送料設定してください」
+// 送料は納品書1枚につき1行だけ入れるので、同じ取引先の西濃行のどれかに送料があれば設定済みとみなす
+const SORYO_NOTE = '送料設定してください';
+function needSoryoNote(it) {
+  const cust = String(it.customer || '').trim();
+  if (!cust || /ネット|楽天|ヤフ/.test(cust) || it.archived === '1' || !isSeino(it.carrier)) return false;
+  return !allItems.some(o => o.archived !== '1' && String(o.customer || '').trim() === cust
+    && isSeino(o.carrier) && parseFloat(String(o.soryo || '').replace(/,/g, '')) > 0);
+}
+function applySoryoNote(it) {
+  if (!it || it.archived === '1') return false;
+  const cur = String(it.remark || '');
+  const has = cur.includes(SORYO_NOTE);
+  const need = needSoryoNote(it);
+  if (need === has) return false;
+  it.remark = need
+    ? (cur ? cur + ' ' + SORYO_NOTE : SORYO_NOTE)
+    : cur.split(SORYO_NOTE).join('').replace(/\s+/g, ' ').trim();
+  return true;
 }
 function onSealChange(el) { saveField(el.dataset.key, el.dataset.field, el.checked?'有':'無'); }
 // シル「シ」・段ボ「段」のトグル表示。ON=有で表示、OFF=無で空
@@ -2113,6 +2150,20 @@ function onDeleteRow(key) {
 }
 
 // ⋯ボタン（製造中・製造完了で共通）。設定済みの特価/送料/メモは色とツールチップで分かるようにする
+function rowMenuTags(it) {
+  const t = [];
+  if (String(getVal(it, 'nouki_renraku')) === '1') t.push(['nouki', '納期']);
+  if (getVal(it, 'important_note')) t.push(['note', 'メモ']);
+  if (getVal(it, 'tokka')) t.push(['tokka', '特価']);
+  if (getVal(it, 'soryo')) t.push(['soryo', '送料']);
+  if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
+  return t;
+}
+// ⋯列の幅: タグが一番多い行に合わせて広げる（タグ無しは従来の2%）
+function menuColW(rows) {
+  const n = Math.max(0, ...rows.map(it => rowMenuTags(it).length));
+  return n ? `calc(2% + ${n * 22 + 6}px)` : '2%';
+}
 function rowMenuBtnHtml(it, k) {
   const hasNote = !!getVal(it, 'important_note');
   const hasTokka = !!getVal(it, 'tokka');
@@ -2123,7 +2174,8 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
-  return `<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button>`;
+  const tags = rowMenuTags(it).map(([c, l]) => `<span class="rm-tag t-${c}">${l}</span>`).join('');
+  return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
 }
 
 // 行メニュー（コピー・削除のポップアップ）
@@ -2983,6 +3035,7 @@ const HINMEI_NAME = { F:'桧フローリング', P:'桧羽目板', S:'桧スノ�
 function fullName(abbr){ return CUSTOMER_FULL[(abbr||'').trim()] || (abbr||'').trim(); }
 function kanryoItems(){
   return allItems.filter(it=>{
+    if(isOrdNg(it)) return false;   // 加工NGは未完了
     const o=parseInt(it.order||'0'); const ord=isNaN(o)?99:o;
     return ord>=9 && it.archived!=='1';
   });
@@ -3103,7 +3156,7 @@ function buildNouhin(en){
 // 取引先ごとにグループ。文面は「長さ(m) 束数（製造中）」。楽天/ヤフー/ネットは除外。
 function shkNum(v){ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; }
 function shkLenM(l){ const n=parseFloat(String(l==null?'':l).replace(/[^0-9.]/g,'')); if(isNaN(n)) return String(l||''); return (Math.round(n/10)/100)+'m'; }
-function shkDone(it){ const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9; }
+function shkDone(it){ if(isOrdNg(it)) return false; const o=parseInt(it.order||'0'); return (isNaN(o)?99:o)>=9; }
 // 束数: 製造完了=実際／製造中=予定（実際は製造完了まで増えていくため確定値でない）
 function shkBun(it){
   if(shkDone(it)){ const a=shkNum(it.actual); return a!=null?a:shkNum(it.planned); }
@@ -3303,6 +3356,7 @@ function syncToSheet() {
   if (syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(() => {
     const kanryo = allItems.filter(it => {
+      if (isOrdNg(it)) return false;
       const ord = parseInt(it.order || '0');
       return (isNaN(ord) ? 99 : ord) >= 9;
     }).filter(it => !isArchived(itemKey(it)));
