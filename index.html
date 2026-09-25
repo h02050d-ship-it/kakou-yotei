@@ -3045,7 +3045,7 @@ let nouhinIncludePending=false;
 function nouhinCandidates(){
   if(!nouhinIncludePending) return kanryoItems();
   // 出荷完了でない行すべて。ただし加工NG(実際=配送確認/注文確定/支払確認)は注文未確定なので除外
-  return allItems.filter(it=> it.archived!=='1' && (shkDone(it) || !isConfirmState(it)));
+  return allItems.filter(it=> it.archived!=='1' && (shkDone(it) || (!isConfirmState(it) && !isOrdNg(it))));
 }
 function showNouhinModal(keepToggle){
   if(keepToggle!==true) nouhinIncludePending=false;
