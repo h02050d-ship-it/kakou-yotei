@@ -257,6 +257,8 @@
   .btn-rowmenu:hover { background: #eee; color: #333; }
   /* ⋯の左に並べる設定済みタグ（納期・メモ・特価・送料・着日） */
   .rm-cell { display: flex; align-items: center; justify-content: flex-end; gap: 2px; white-space: nowrap; }
+  .rm-tags { display: grid; grid-template-rows: repeat(2, auto); grid-auto-flow: column; gap: 1px 2px; align-items: center; justify-items: end; }
+  .rm-tag.t-src { color: #546e7a; background: #eceff1; border-style: dashed; }
   .rm-tag { font-size: 9px; font-weight: 800; line-height: 1; padding: 2px 2px; border-radius: 3px; border: 1px solid currentColor; letter-spacing: -0.5px; }
   .rm-tag.t-nouki { color: #c62828; background: #ffebee; }
   .rm-tag.t-note { color: #f57f17; background: #fff8e1; }
@@ -588,7 +590,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
 const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'出荷日',remark:'備考'};
-const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'5%',remark:'18%'};
+const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'5%'};   // 備考(remark)は幅指定なし＝残り幅を全部もらう（2026-09-28 ⋯列は最小px）
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -625,7 +627,7 @@ function saveField(key, field, val) {
   // サーバー未受信中は画面の値も書き換えない（書き換えると「保存済みに見えて次の受信で戻る」）2026-09-18
   if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); render(); return; }
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it[field] = val; saveItem(it); if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); } }
+  if (it) { it[field] = val; saveItem(it); if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); } if (field === 'customer') srcResolveSoon(key); }
 }
 
 // 市場系(EC以外)の行に出荷日が入ったら、納品書GASが取引先マスタ(取引方法=市売)で判定して
@@ -653,6 +655,7 @@ function saveRowOrder(order) { db.ref('settings/rowOrder').set(order); }
 // Load all data from Firebase and listen for changes
 function loadData() {
   loadLearn();   // 学習データ（settings/learn）の購読も認証後に開始
+  loadSrcs();    // 発注ソースの特定結果（srcs）
   const main = document.getElementById('mainArea');
   // キャッシュ表示済みならスピナーで消さない（裏で最新受信→自動で差し替わる）
   if (!allItems.length) main.innerHTML = '<div class="loading"><div class="spinner"></div>読み込み中...</div>';
@@ -732,6 +735,7 @@ function loadData() {
       }
       render();
       syncToSheet();
+      srcKick();
       document.getElementById('lastUpdated').textContent =
         new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
       // 起動高速化: 次回起動の即表示用に表示中データを保存
@@ -2167,12 +2171,18 @@ function rowMenuTags(it) {
   if (getVal(it, 'soryo')) t.push(['soryo', '送料']);
   if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
   if (shkPending(it)) t.push(['shk', '通知']);
+  if (srcUnknown(it)) t.push(['src', 'ソース?']);
   return t;
 }
-// ⋯列の幅: タグが一番多い行に合わせて広げる（タグ無しは従来の2%）
+// ⋯列の幅: 既定は⋯ボタンだけの最小幅。タグは上下2段に積み、要る分だけ横に広げる（備考欄優先 2026-09-28）
+const tagW = l => l.length * 9 + 6;
 function menuColW(rows) {
-  const n = Math.max(0, ...rows.map(it => rowMenuTags(it).length));
-  return n ? `calc(2% + ${n * 22 + 6}px)` : '2%';
+  const w = Math.max(0, ...rows.map(it => {
+    const t = rowMenuTags(it); let s = 0;
+    for (let i = 0; i < t.length; i += 2) s += Math.max(tagW(t[i][1]), t[i + 1] ? tagW(t[i + 1][1]) : 0) + 2;
+    return s;
+  }));
+  return (44 + w) + 'px';
 }
 function rowMenuBtnHtml(it, k) {
   const hasNote = !!getVal(it, 'important_note');
@@ -2184,8 +2194,9 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
-  const TAG_TIP = { nouki: '納期連絡 未', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '出荷通知（出荷依頼）まだ' };
-  const tags = rowMenuTags(it).map(([c, l]) => `<span class="rm-tag t-${c}" title="${TAG_TIP[c]}">${l}</span>`).join('');
+  const TAG_TIP = { nouki: '納期連絡 未', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '出荷通知（出荷依頼）まだ', src: '発注ソース（元のFAX・メール）が見つかっていません' };
+  const tl = rowMenuTags(it);
+  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" title="${TAG_TIP[c]}">${l}</span>`).join('') + '</span>' : '';
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
 }
 
@@ -2244,11 +2255,55 @@ function loadRowSrc(key, m) {
     const r = m.getBoundingClientRect();
     if (r.bottom > window.innerHeight - 6) m.style.top = Math.max(6, window.innerHeight - r.height - 6) + 'px';
   };
+  const it = allItems.find(i => itemKey(i) === key);
+  const saved = srcMap[srcKey(key)];
+  if (saved && (!it || saved.cust === String(getVal(it, 'customer')) || String(key).startsWith('od_'))) { show({ sources: saved.list || [] }); return; }   // 裏側で特定済み→即表示
   const c = rowSrcCache[key];
   if (c && Date.now() - c.at < 600000) { show(c.d); return; }
-  fetch(GAS_URL + '?action=kaichkSrc&uid=' + encodeURIComponent(key) + nouhinAuth_())
+  fetch(GAS_URL + '?action=kaichkSrc&save=1&uid=' + encodeURIComponent(key) + nouhinAuth_())
     .then(r => r.json()).then(d => { if (d && !d.error) rowSrcCache[key] = { at: Date.now(), d }; show(d); })
     .catch(() => show(null));
+}
+// 発注ソースの裏側特定（2026-09-28 本人要望「登録したらすぐ裏で特定しておいて、⋯ですぐ見れるように」）
+// 結果は納品書GASが Firebase settings/srcs/<uid> に保存（取引先を入れた直後にこの画面から依頼＋GASが15分ごとに全行を巡回）
+let srcMap = {}, srcLoaded = false;
+const srcKey = k => String(k).replace(/[.#$/\[\]]/g, '_');
+function srcUnknown(it) {
+  if (!srcLoaded || isArchived(itemKey(it))) return false;
+  const s = srcMap[srcKey(itemKey(it))];
+  return !!(s && !s.n && !s.ec && s.cust === String(getVal(it, 'customer')));   // 特定を試して見つからなかった行だけ（未特定の間は出さない）
+}
+const srcAsked = {}, srcTimers = {};
+function srcResolveSoon(key, ms) {
+  clearTimeout(srcTimers[key]);
+  srcTimers[key] = setTimeout(() => {
+    const it = allItems.find(i => itemKey(i) === key);
+    if (!it || (!getVal(it, 'customer') && !String(key).startsWith('od_'))) return;
+    srcAsked[key] = getVal(it, 'customer');
+    fetch(GAS_URL + '?action=kaichkSrc&save=1&uid=' + encodeURIComponent(key) + nouhinAuth_()).catch(() => {});
+  }, ms == null ? 4000 : ms);
+}
+// 取引先が入っているのに未特定（または取引先が変わった）行を見つけたら、すぐ特定を依頼（端末ごとに1行1回）
+function srcKick() {
+  if (!srcLoaded || !liveLoaded) return;
+  allItems.forEach(it => {
+    const k = itemKey(it), cust = String(getVal(it, 'customer'));
+    if (isArchived(k) || (!cust && !String(k).startsWith('od_'))) return;
+    const s = srcMap[srcKey(k)];
+    if (s && s.cust === cust) return;
+    if (srcAsked[k] === cust) return;
+    const m = /^add_(\d{13})/.exec(k);
+    if (m && Date.now() - Number(m[1]) > 86400000 && !s) return;   // 古い行はGASの巡回に任せる（一斉に依頼しない）
+    srcResolveSoon(k, 1500 + Math.random() * 3000);
+  });
+}
+function loadSrcs() {
+  db.ref('settings/srcs').on('value', snap => {
+    const prev = allItems.filter(srcUnknown).map(itemKey).join(',');
+    srcMap = snap.val() || {}; srcLoaded = true;
+    if (allItems.filter(srcUnknown).map(itemKey).join(',') !== prev) render();   // タグが変わる時だけ描き直す
+    srcKick();
+  });
 }
 function rowMenuCopy() {
   const it = allItems.find(i => itemKey(i) === rowMenuKey);
