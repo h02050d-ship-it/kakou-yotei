@@ -2109,8 +2109,9 @@ function isArchived(key) {
 function onArchive(key) {
   const it = allItems.find(i => itemKey(i) === key);
   if (!it) return;
-  // 納品書未作成（📄印なし）の市場・手入力行は確認。EC行（ネット/楽天/ヤフ）は自動納品書があるので対象外
-  if (String(getVal(it, 'nouhin_pre')) !== '1' && !/ネット|楽天|ヤフ/.test(String(it.customer || ''))) {
+  // 納品書未作成（📄印なし）の市場・手入力行は確認。EC行（ネット/楽天/ヤフ）は自動納品書があるので対象外・長さ1000mm未満(300mm等)はカットサンプル＝納品書なし
+  const sampleLen = parseInt(getVal(it, 'length'), 10);
+  if (String(getVal(it, 'nouhin_pre')) !== '1' && !/ネット|楽天|ヤフ/.test(String(it.customer || '')) && !(sampleLen && sampleLen < 1000)) {
     if (!confirm('納品書が未作成のようです（📄印なし）。出荷完了にしますか？')) return;
   }
   it.archived = '1'; it.archived_at = Date.now(); saveItem(it); logEcShip(it);
