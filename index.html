@@ -2175,14 +2175,14 @@ function rowMenuTags(it) {
   return t;
 }
 // ⋯列の幅: 既定は⋯ボタンだけの最小幅。タグは上下2段に積み、要る分だけ横に広げる（備考欄優先 2026-09-28）
-const tagW = l => l.length * 9 + 6;
+const tagW = l => [...l].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 8.5 : 4.5), 6);   // 実測: 2文字=23px・「ソース?」=36px
 function menuColW(rows) {
   const w = Math.max(0, ...rows.map(it => {
     const t = rowMenuTags(it); let s = 0;
     for (let i = 0; i < t.length; i += 2) s += Math.max(tagW(t[i][1]), t[i + 1] ? tagW(t[i + 1][1]) : 0) + 2;
     return s;
   }));
-  return (44 + w) + 'px';
+  return Math.ceil(40 + w) + 'px';   // ⋯ボタン36px＋余白
 }
 function rowMenuBtnHtml(it, k) {
   const hasNote = !!getVal(it, 'important_note');
