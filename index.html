@@ -266,6 +266,8 @@
   .rm-tag.t-soryo { color: #1565c0; background: #e3f2fd; }
   .rm-tag.t-chaku { color: #e65100; background: #fff3e0; }
   .rm-tag.t-shk { color: #6a1b9a; background: #f3e5f5; }
+  .rm-tag[data-tip] { cursor: help; }
+  #tagTip { position: fixed; z-index: 9999; max-width: 260px; padding: 5px 8px; font-size: 12px; line-height: 1.4; color: #fff; background: rgba(33,33,33,.92); border-radius: 4px; pointer-events: none; display: none; }
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
   .btn-rowmenu.has-soryo { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
@@ -2171,7 +2173,7 @@ function rowMenuTags(it) {
   if (getVal(it, 'tokka')) t.push(['tokka', '特価']);
   if (getVal(it, 'soryo')) t.push(['soryo', '送料']);
   if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
-  if (shkPending(it)) t.push(['shk', '通知']);
+  if (shkPending(it)) t.push(['shk', '納期']);
   if (srcUnknown(it)) t.push(['src', 'ソース?']);
   return t;
 }
@@ -2195,9 +2197,9 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
-  const TAG_TIP = { nouki: '納期連絡 未', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '出荷通知（出荷依頼）まだ', src: '発注ソース（元のFAX・メール）が見つかっていません' };
+  const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '納期（出荷予定）をまだ業者へ連絡していません＝出荷依頼LINE未送信', src: '発注ソース（元のFAX・メール）が見つかっていません' };
   const tl = rowMenuTags(it);
-  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" title="${TAG_TIP[c]}">${l}</span>`).join('') + '</span>' : '';
+  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" data-tip="${TAG_TIP[c]}">${l}</span>`).join('') + '</span>' : '';
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
 }
 
@@ -3500,6 +3502,18 @@ firebase.auth().signInAnonymously().catch(e => {
   const main = document.getElementById('mainArea');
   main.innerHTML = '<div class="error-msg">認証に失敗しました: ' + e.message + '</div>';
 });
-</script>
+// タグにカーソルを合わせると即座に解説表示（titleの遅延表示の代わり）
+(function(){
+  const tip = document.createElement('div'); tip.id = 'tagTip'; document.body.appendChild(tip);
+  document.addEventListener('mouseover', e => {
+    const t = e.target.closest && e.target.closest('.rm-tag[data-tip]');
+    if (!t) { tip.style.display = 'none'; return; }
+    tip.textContent = t.dataset.tip; tip.style.display = 'block';
+    const r = t.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(4, Math.min(window.innerWidth - w - 4, r.right - w)) + 'px';
+    tip.style.top = (r.top - h - 6 < 4 ? r.bottom + 6 : r.top - h - 6) + 'px';
+  });
+  window.addEventListener('scroll', () => { tip.style.display = 'none'; }, true);
+})();</script>
 </body>
 </html>
