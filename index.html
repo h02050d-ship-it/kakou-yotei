@@ -1707,21 +1707,22 @@ function autoTapeNote(key, field) {
 // 製造順の選択肢「加工NG」（人が選ぶ・一番最後）。並びは製造順8の後ろ、製造完了・納品書候補には入れない
 const ORD_NG = '加工NG';
 function isOrdNg(it) { return String(getVal(it, 'order')) === ORD_NG; }
-// 市場(ネット/楽天/ヤフ以外)×西濃で送料が未設定 → 備考に「送料設定してください」（カットサンプル=長さ1000mm未満は除外）
+// 市場(ネット/楽天/ヤフ以外)×西濃で送料が未設定 → 備考に「送料設定してください」（カットサンプル=長さ910mm未満は除外）
 // 送料は納品書1枚につき1行だけ入れるので、同じ取引先の西濃行のどれかに送料があれば設定済みとみなす
 const SORYO_NOTE = '送料設定してください';
 function needSoryoNote(it) {
   const cust = String(it.customer || '').trim();
   if (!cust || /ネット|楽天|ヤフ/.test(cust) || it.archived === '1' || !isSeino(it.carrier)) return false;
-  // 長さ1000mm未満(300mm等)はカットサンプル＝送料設定不要
+  // 長さ910mm未満(300mm等)はカットサンプル＝送料設定不要
   const len = parseInt(String(it.length || '').replace(/[^0-9]/g, ''), 10);
-  if (len > 0 && len < 1000) return false;
+  if (len > 0 && len < SAMPLE_MAX_LEN) return false;
   return !allItems.some(o => o.archived !== '1' && String(o.customer || '').trim() === cust
     && isSeino(o.carrier) && parseFloat(String(o.soryo || '').replace(/,/g, '')) > 0);
 }
-// 長さ1000mm未満(300mm等)＝カットサンプル → 備考に「サンプル」（長さを変えたら自動で消える）
+// 長さ910mm未満(300mm等)＝カットサンプル → 備考に「サンプル」（長さを変えたら自動で消える）
 const SAMPLE_NOTE = 'サンプル';
-function isCutSample(it) { const n = parseInt(String(it.length || '').replace(/[^0-9]/g, ''), 10); return n > 0 && n < 1000; }
+const SAMPLE_MAX_LEN = 910; // 910(1m品)は通常品。サンプルは910未満(300等)だけ
+function isCutSample(it) { const n = parseInt(String(it.length || '').replace(/[^0-9]/g, ''), 10); return n > 0 && n < SAMPLE_MAX_LEN; }
 function applySampleNote(it) {
   if (!it || it.archived === '1') return false;
   const cur = String(it.remark || '');
@@ -2146,9 +2147,9 @@ function isArchived(key) {
 function onArchive(key) {
   const it = allItems.find(i => itemKey(i) === key);
   if (!it) return;
-  // 納品書未作成（📄印なし）の市場・手入力行は確認。EC行（ネット/楽天/ヤフ）は自動納品書があるので対象外・長さ1000mm未満(300mm等)はカットサンプル＝納品書なし
+  // 納品書未作成（📄印なし）の市場・手入力行は確認。EC行（ネット/楽天/ヤフ）は自動納品書があるので対象外・長さ910mm未満(300mm等)はカットサンプル＝納品書なし
   const sampleLen = parseInt(getVal(it, 'length'), 10);
-  if (String(getVal(it, 'nouhin_pre')) !== '1' && !/ネット|楽天|ヤフ/.test(String(it.customer || '')) && !(sampleLen && sampleLen < 1000)) {
+  if (String(getVal(it, 'nouhin_pre')) !== '1' && !/ネット|楽天|ヤフ/.test(String(it.customer || '')) && !(sampleLen && sampleLen < SAMPLE_MAX_LEN)) {
     if (!confirm('納品書が未作成のようです（📄印なし）。出荷完了にしますか？')) return;
   }
   it.archived = '1'; it.archived_at = Date.now(); saveItem(it); logEcShip(it);
