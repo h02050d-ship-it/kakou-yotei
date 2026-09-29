@@ -75,6 +75,11 @@
   .due-wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; width: 100%; min-height: 1.3em; cursor: pointer; }
   .chaku-disp { flex-basis: 100%; text-align: center; font-size: 10px; font-weight: 800; color: #e65100; line-height: 1.15; white-space: nowrap; }
   .due-cell-today .chaku-disp { color: #ffe0b2; }
+  .due-kbn-disp { flex-basis: 100%; text-align: center; font-size: 10px; font-weight: 800; color: #00695c; line-height: 1.15; white-space: nowrap; }
+  .due-cell-today .due-kbn-disp { color: #fff; }
+  .due-kbn { display: flex; gap: 10px; margin-top: 8px; padding-top: 6px; border-top: 1px dashed #ddd; font-size: 12px; font-weight: 700; color: #444; }
+  .due-kbn label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .due-kbn input[type="checkbox"] { width: 16px; height: 16px; }
   .rowmenu-pop button.rm-seino { color: #e65100; }
   .rowmenu-pop button.rm-seino:hover { background: #fff3e0; }
   /* ⋯メニュー先頭の発注ソース（FAX/メール/EC注文を別タブで開く 2026-09-26） */
@@ -617,7 +622,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
     data[f] = (it[f] !== undefined && it[f] !== '') ? it[f] : null;   // 空は削除(null)
   });
   // set(丸ごと)ではなく update(既知の項目だけ)にする。古いキャッシュ版ページ(SWRで更新直後は旧版が1回出る)が
@@ -629,7 +634,7 @@ function saveField(key, field, val) {
   // サーバー未受信中は画面の値も書き換えない（書き換えると「保存済みに見えて次の受信で戻る」）2026-09-18
   if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); render(); return; }
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it[field] = val; saveItem(it); if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); } if (field === 'customer') srcResolveSoon(key); }
+  if (it) { it[field] = val; saveItem(it); if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); } if (field === 'customer') srcResolveSoon(key); if (field === 'length' && applySampleNote(it)) { saveItem(it); render(); } }
 }
 
 // 市場系(EC以外)の行に出荷日が入ったら、納品書GASが取引先マスタ(取引方法=市売)で判定して
@@ -719,6 +724,7 @@ function loadData() {
       }
       // 市場×西濃で送料が未設定なら備考に「送料設定してください」（設定・配送変更で自動で消える）
       if (applySoryoNote(it)) dirty = true;
+      if (applySampleNote(it)) dirty = true;
       if (dirty) saveItem(it);
     });
 
@@ -906,7 +912,7 @@ function cellRenderers(it, sz) {
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
     zaiko: `<div class="mark-toggle mt-zaiko ${getVal(it,'zaiko')==='1'?'on':''}" data-key="${k}" data-field="zaiko" onclick="onMarkToggle(this)">${getVal(it,'zaiko')==='1'?'有':''}</div>`,
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取','郵便'],sz,'',carrierColors),
-    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}${chakuDispHtml(it)}</div>`,
+    due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}${dueKbnDispHtml(it)}${chakuDispHtml(it)}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
   };
 }
@@ -1713,6 +1719,20 @@ function needSoryoNote(it) {
   return !allItems.some(o => o.archived !== '1' && String(o.customer || '').trim() === cust
     && isSeino(o.carrier) && parseFloat(String(o.soryo || '').replace(/,/g, '')) > 0);
 }
+// 長さ1000mm未満(300mm等)＝カットサンプル → 備考に「サンプル」（長さを変えたら自動で消える）
+const SAMPLE_NOTE = 'サンプル';
+function isCutSample(it) { const n = parseInt(String(it.length || '').replace(/[^0-9]/g, ''), 10); return n > 0 && n < 1000; }
+function applySampleNote(it) {
+  if (!it || it.archived === '1') return false;
+  const cur = String(it.remark || '');
+  const has = cur.split(/\s+/).includes(SAMPLE_NOTE);
+  const need = isCutSample(it);
+  if (need === has) return false;
+  it.remark = need
+    ? (cur ? SAMPLE_NOTE + ' ' + cur : SAMPLE_NOTE)
+    : cur.split(/\s+/).filter(w => w !== SAMPLE_NOTE).join(' ').trim();
+  return true;
+}
 function applySoryoNote(it) {
   if (!it || it.archived === '1') return false;
   const cur = String(it.remark || '');
@@ -1822,6 +1842,12 @@ function fmtDue(v) {
     return (d.getMonth()+1) + '/' + d.getDate() + DUE_WD[d.getDay()];
   }).join(' or ');
 }
+// 出荷日の時間帯（任意）: 午前／午後／夕方以降。出荷日の下に小さく表示（due自体の形式は変えない＝GAS側は影響なし）
+const DUE_KBNS = ['午前', '午後', '夕方以降'];
+function dueKbnDispHtml(it) {
+  const k = String(getVal(it, 'due_kbn') || '');
+  return DUE_KBNS.includes(k) ? '<div class="due-kbn-disp" title="出荷の時間帯">' + k + '</div>' : '';
+}
 // 着日指定（⋯メニュー／一括設定ポップアップで登録）: 出荷日の下に小さく「着9/19㈯ 午前」
 function chakuDispHtml(it) {
   const c = String(getVal(it, 'chaku') || '');
@@ -1896,6 +1922,10 @@ function renderDuePop() {
   }
   h += '</div>';
   h += `<div class="due-foot"><label><input type="checkbox" ${dueMulti?'checked':''} onchange="dueMultiToggle(this)">複数選択（2日・or表示）</label><button class="due-clear" onclick="dueClear()">クリア</button></div>`;
+  const it = allItems.find(i => itemKey(i) === dueKey);
+  const kbn = String((it && it.due_kbn) || '');
+  h += '<div class="due-kbn" title="任意・どれか1つ">' + DUE_KBNS.map(k =>
+    `<label><input type="checkbox" ${kbn === k ? 'checked' : ''} onchange="dueKbnSet('${k}', this.checked)">${k}</label>`).join('') + '</div>';
   duePop.innerHTML = h;
 }
 function dueNav(d) { dueYm.m += d; if (dueYm.m < 0) { dueYm.m = 11; dueYm.y--; } if (dueYm.m > 11) { dueYm.m = 0; dueYm.y++; } renderDuePop(); }
@@ -1923,7 +1953,9 @@ function duePick(iso) {
     dueSel = [iso]; dueSave(); closeDuePop();
   }
 }
-function dueClear() { dueSel = []; dueSave(); closeDuePop(); }
+function dueClear() { const k = dueKey; dueSel = []; dueSave(); saveField(k, 'due_kbn', ''); closeDuePop(); }
+// 時間帯はどれか1つ（チェックを外せば無し）。日付を選び直しても残す
+function dueKbnSet(k, on) { saveField(dueKey, 'due_kbn', on ? k : ''); renderDuePop(); render(); }
 document.addEventListener('click', () => closeDuePop());
 document.addEventListener('scroll', e => {
   if (duePop && (e.target === duePop || duePop.contains(e.target))) return;
