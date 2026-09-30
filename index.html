@@ -2209,7 +2209,7 @@ function rowMenuTags(it) {
   if (getVal(it, 'tokka')) t.push(['tokka', '特価']);
   if (getVal(it, 'soryo')) t.push(['soryo', '送料']);
   if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
-  if (shkPending(it)) t.push(['shk', '納期']);
+  if (shkPending(it)) t.push(['shk', '出荷']);
   if (srcUnknown(it)) t.push(['src', 'ソース?']);
   return t;
 }
@@ -2233,7 +2233,7 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
-  const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '納期（出荷予定）をまだ業者へ連絡していません＝出荷依頼LINE未送信', src: '発注ソース（元のFAX・メール）が見つかっていません' };
+  const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '内藤運輸への出荷通知（出荷依頼LINE）がまだ。未送信が残っている日は平日9時に info@ へメールが届きます', src: '発注ソース（元のFAX・メール）が見つかっていません' };
   const tl = rowMenuTags(it);
   const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" data-tip="${TAG_TIP[c]}">${l}</span>`).join('') + '</span>' : '';
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
