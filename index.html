@@ -2236,13 +2236,11 @@ function rowMenuBtnHtml(it, k) {
   const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '内藤運輸への出荷通知（出荷依頼LINE）がまだ。未送信が残っている日は平日9時に info@ へメールが届きます', src: '発注ソース（元のFAX・メール）が見つかっていません' };
   // メモ・特価・送料・着日は中身（内容・金額）までツールチップに出す（2026-09-30）
   const yen = v => { const n = Number(v); return isNaN(n) ? String(v) : n.toLocaleString() + '円'; };
-  if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ
-' + String(getVal(it, 'important_note'));
+  if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ\n' + String(getVal(it, 'important_note'));
   if (hasTokka) TAG_TIP.tokka = '特価 ' + yen(getVal(it, 'tokka')) + '（今回のみの単価）';
   if (hasSoryo) TAG_TIP.soryo = '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
   if (getVal(it, 'chaku')) TAG_TIP.chaku = '着日指定 ' + fmtDue(getVal(it, 'chaku')) + (getVal(it, 'chaku_kbn') ? ' ' + getVal(it, 'chaku_kbn') : '');
-  const tipAttr = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])).replace(/?
-/g, '&#10;');
+  const tipAttr = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])).replace(/\r?\n/g, '&#10;');
   const tl = rowMenuTags(it);
   const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" data-tip="${tipAttr(TAG_TIP[c])}">${l}</span>`).join('') + '</span>' : '';
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
