@@ -272,7 +272,7 @@
   .rm-tag.t-chaku { color: #e65100; background: #fff3e0; }
   .rm-tag.t-shk { color: #6a1b9a; background: #f3e5f5; }
   .rm-tag[data-tip] { cursor: help; }
-  #tagTip { position: fixed; z-index: 9999; max-width: 260px; padding: 5px 8px; font-size: 12px; line-height: 1.4; color: #fff; background: rgba(33,33,33,.92); border-radius: 4px; pointer-events: none; display: none; }
+  #tagTip { position: fixed; z-index: 9999; max-width: 320px; white-space: pre-wrap; word-break: break-word; padding: 5px 8px; font-size: 12px; line-height: 1.4; color: #fff; background: rgba(33,33,33,.92); border-radius: 4px; pointer-events: none; display: none; }
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
   .btn-rowmenu.has-soryo { border-color: #1565c0; color: #1565c0; background: #e3f2fd; }
   .btn-rowmenu.has-note { border-color: #f57f17; color: #f57f17; background: #fff8e1; }
@@ -2234,8 +2234,17 @@ function rowMenuBtnHtml(it, k) {
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
   const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '内藤運輸への出荷通知（出荷依頼LINE）がまだ。未送信が残っている日は平日9時に info@ へメールが届きます', src: '発注ソース（元のFAX・メール）が見つかっていません' };
+  // メモ・特価・送料・着日は中身（内容・金額）までツールチップに出す（2026-09-30）
+  const yen = v => { const n = Number(v); return isNaN(n) ? String(v) : n.toLocaleString() + '円'; };
+  if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ
+' + String(getVal(it, 'important_note'));
+  if (hasTokka) TAG_TIP.tokka = '特価 ' + yen(getVal(it, 'tokka')) + '（今回のみの単価）';
+  if (hasSoryo) TAG_TIP.soryo = '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
+  if (getVal(it, 'chaku')) TAG_TIP.chaku = '着日指定 ' + fmtDue(getVal(it, 'chaku')) + (getVal(it, 'chaku_kbn') ? ' ' + getVal(it, 'chaku_kbn') : '');
+  const tipAttr = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])).replace(/?
+/g, '&#10;');
   const tl = rowMenuTags(it);
-  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" data-tip="${TAG_TIP[c]}">${l}</span>`).join('') + '</span>' : '';
+  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}" data-tip="${tipAttr(TAG_TIP[c])}">${l}</span>`).join('') + '</span>' : '';
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
 }
 
