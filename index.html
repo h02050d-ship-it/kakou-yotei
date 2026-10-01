@@ -1073,14 +1073,16 @@ function render() {
       html += `<div style="padding:4px 16px;color:#999;font-size:12px">直近${kanryoArchived.length}件を表示中（それ以前は納品書データベースから確認できます）</div>`;
     }
     html += `<div class="table-scroll"><table class="tbl-archive"><thead><tr>`;
-    // 1列目=実際に出荷完了にした日。due列が「出荷日」になったので名前を分ける
-    kanryoCols.forEach(c => { html += `<th>${c==='order'?'出荷完了日':(COL_LABELS[c]||c)}</th>`; });
+    // 1列目=出荷日(due)。出荷完了日(実際に出荷完了にした日)は配送の右へ（2026-10-01 本人指示）
+    // 見出しは下の行と同じ固定順（製造完了の列並べ替えに引きずられてズレないように）
+    ['due','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','order','remark']
+      .forEach(c => { html += `<th>${c==='order'?'出荷完了日':(COL_LABELS[c]||c)}</th>`; });
     html += `<th></th></tr></thead><tbody>`;
     kanryoArchived.forEach(it => {
       const k = itemKey(it);
       const e2 = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
       html += `<tr>
-        <td><input type="date" class="arch-date" value="${isoFromTs(it.archived_at || it.completed_at)}" onchange="onArchDate('${k}',this.value)"></td>
+        <td>${e2(fmtDue(getVal(it,'due')))||''}</td>
         <td class="cust">${e2(getVal(it,'customer'))}</td>
         <td>${e2(getVal(it,'hinmei'))}</td>
         <td>${e2(getVal(it,'grade'))}</td>
@@ -1096,7 +1098,7 @@ function render() {
         <td>${getVal(it,'tosou')==='1'?'有':''}</td>
         <td>${getVal(it,'zaiko')==='1'?'有':''}</td>
         <td>${e2(getVal(it,'carrier'))||''}</td>
-        <td>${e2(fmtDue(getVal(it,'due')))||''}</td>
+        <td><input type="date" class="arch-date" value="${isoFromTs(it.archived_at || it.completed_at)}" onchange="onArchDate('${k}',this.value)"></td>
         <td>${e2(getVal(it,'remark'))||''}</td>
         <td><button class="btn-restore" onclick="onRestore('${k}')">戻す</button></td>
       </tr>`;
