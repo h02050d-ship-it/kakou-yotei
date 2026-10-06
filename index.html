@@ -2451,7 +2451,7 @@ function shkMarkKeys(keys, text, manual) {
   if (!liveLoaded) { alert('まだ同期中です。少し待ってからもう一度お試しください。'); return false; }
   const ts = Date.now();
   keys.forEach(k => { try { db.ref('items/' + k.replace(/[.#$/\[\]]/g, '_') + '/shk_sent').set(ts); } catch (e) {} });
-  try { db.ref('shukka_log').push({ ts, count: keys.length, text, manual: manual ? 1 : 0 }); } catch (e) {}
+  try { db.ref('shukka_log').push({ ts, count: keys.length, text, manual: manual ? 1 : 0 }).catch(() => {}); } catch (e) {}   // shukka_log は現在のDBルールで匿名クライアントから読み書き不可(通知履歴も「読み込み中…」のまま)。失敗しても本体のshk_sentは別書込なので影響なし
   return true;
 }
 function rowMenuShk() {
