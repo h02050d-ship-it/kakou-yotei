@@ -315,6 +315,10 @@
   .st-why { font-size: 12px; color: #78909c; line-height: 1.5; margin-top: 7px; }
   .st-ok { background: #2e7d32 !important; }
   .rowmenu-pop button.rm-setup { color: #2e7d32; }
+  .rowmenu-pop button.rm-shk { color: #6a1b9a; }
+  .rowmenu-pop button.rm-shk:hover { background: #f3e5f5; }
+  .rowmenu-pop button.rm-shk.done { color: #2e7d32; }
+  .rowmenu-pop button.rm-shk.done:hover { background: #e8f5e9; }
   .rowmenu-pop button.rm-setup:hover { background: #e8f5e9; }
   .rowmenu-pop button.rm-note { color: #f57f17; }
   .rowmenu-pop button.rm-note:hover { background: #fff8e1; }
@@ -2235,7 +2239,7 @@ function rowMenuBtnHtml(it, k) {
     + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
-  const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '内藤運輸への出荷通知（出荷依頼LINE）がまだ。未送信が残っている日は平日9時に info@ へメールが届きます', src: '発注ソース（元のFAX・メール）が見つかっていません' };
+  const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '内藤運輸への出荷通知（出荷依頼LINE）がまだ。未送信が残っている日は平日9時に info@ へメールが届きます。電話やLINEで個別に済ませた時は ⋯メニューの「出荷通知 処理済み」で消せます', src: '発注ソース（元のFAX・メール）が見つかっていません' };
   // メモ・特価・送料・着日は中身（内容・金額）までツールチップに出す（2026-09-30）
   const yen = v => { const n = Number(v); return isNaN(n) ? String(v) : n.toLocaleString() + '円'; };
   if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ\n' + String(getVal(it, 'important_note'));
@@ -2265,6 +2269,10 @@ function openRowMenu(btn, key, ev) {
   const _sr = _it ? getVal(_it, 'soryo') : '';
   const _nk = _it ? String(getVal(_it, 'nouki_renraku') || '') : '';
   const _ck = _it && getVal(_it, 'chaku') ? fmtDue(String(getVal(_it, 'chaku'))) + (getVal(_it, 'chaku_kbn') ? ' ' + getVal(_it, 'chaku_kbn') : '') : '';
+  // 出荷通知(内藤運輸への出荷依頼LINE)の処理済み/戻す（2026-10-06 本人要望「個人的にやりとりして処理が終わっていることがある」）
+  const shkBtn = !_it || !shkCand(_it) ? ''
+    : _it.shk_sent ? `<button class="rm-shk done" onclick="rowMenuShk()">📤 出荷通知 済（${shkSentLabel(_it)}）→ 未送信に戻す</button>`
+    : `<button class="rm-shk" onclick="rowMenuShk()">📤 出荷通知 処理済みにする（送らない）</button>`;
   const nkBtn = _nk === '1' ? `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡（未）→ 連絡した</button>`
     : _nk === 'done' ? `<button class="rm-nouki done" onclick="rowMenuNouki()">📞 納期連絡 済</button>`
     : `<button class="rm-nouki" onclick="rowMenuNouki()">📞 納期連絡が要る</button>`;
@@ -2275,6 +2283,7 @@ function openRowMenu(btn, key, ev) {
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-setup" onclick="rowMenuChaku()">📅 着日指定${_ck?`（${_ck}）`:''}</button>` +
     nkBtn +
+    shkBtn +
     (_it && isSeino(getVal(_it, 'carrier')) ? `<button class="rm-seino" onclick="rowMenuSeino()">🚚 西濃送り状を作る</button>` : '') +
     `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
@@ -2427,6 +2436,38 @@ function noukiMarkDone(it) {
   grp.forEach(x => { x.nouki_renraku = 'done'; applyNoukiNote(x); saveItem(x); });
   closeNoukiToast();
   return grp.length;
+}
+// 出荷通知を「処理済み」にする＝shk_sent を手動で付ける。cron(平日9/12/15 LINE)・mail_cron(平日9時 info@)・タグ「出荷」は全部 shk_sent の有無で判定しているので、これだけで全部止まる
+function shkSentLabel(it) {
+  const v = it && it.shk_sent; if (!v) return '';
+  const n = Number(v); if (!n || isNaN(n)) return '手動';
+  const d = new Date(n); return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+function shkRowLabel(it) {
+  const bun = shkBun(it);
+  return `${(it.customer || '').trim()} ${shkLenM(it.length)} ${bun != null ? bun + '束' : '?束'} ${it.grade || ''}`.replace(/\s+/g, ' ').trim();
+}
+function shkMarkKeys(keys, text, manual) {
+  if (!liveLoaded) { alert('まだ同期中です。少し待ってからもう一度お試しください。'); return false; }
+  const ts = Date.now();
+  keys.forEach(k => { try { db.ref('items/' + k.replace(/[.#$/\[\]]/g, '_') + '/shk_sent').set(ts); } catch (e) {} });
+  try { db.ref('shukka_log').push({ ts, count: keys.length, text, manual: manual ? 1 : 0 }); } catch (e) {}
+  return true;
+}
+function rowMenuShk() {
+  const key = rowMenuKey;
+  const it = allItems.find(i => itemKey(i) === key);
+  closeRowMenu();
+  if (!it) return;
+  if (it.shk_sent) {
+    if (confirm(shkRowLabel(it) + '\n\n出荷通知を「未送信」に戻しますか？\n（タグ「出荷」が付き、平日9時のメールと内藤運輸への出荷依頼の対象に戻ります）')) {
+      try { db.ref('items/' + key.replace(/[.#$/\[\]]/g, '_') + '/shk_sent').remove(); } catch (e) {}
+    }
+    return;
+  }
+  if (confirm(shkRowLabel(it) + '\n\n出荷通知を処理済みにしますか？\n（電話・LINEなどで内藤運輸へ個別に伝えた時用。出荷依頼LINEは送らず、リマインドとタグ「出荷」だけ消します）')) {
+    shkMarkKeys([key], '✅ 手動で処理済み（個別連絡）\n' + shkRowLabel(it), true);
+  }
 }
 function rowMenuNouki() {
   const key = rowMenuKey;
@@ -3393,7 +3434,8 @@ function showShukkaModal(){
   html+='</div>';
   html+='<div style="padding:10px 16px;border-top:1px solid #ddd"><textarea id="shukkaText" readonly style="width:100%;height:160px;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box"></textarea>';
   html+='<div style="display:flex;justify-content:flex-end;margin-top:6px"><button id="shkEditBtn" onclick="toggleShkEdit(this)" style="padding:6px 12px;background:#fff;color:#1a73e8;border:1px solid #1a73e8;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer">✏️ 編集</button></div>';
-  html+='<button onclick="sendShukka(this)" style="margin-top:8px;width:100%;padding:12px;background:#06C755;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">📤 内藤運輸へ送信</button></div>';
+  html+='<button onclick="sendShukka(this)" style="margin-top:8px;width:100%;padding:12px;background:#06C755;color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:700;cursor:pointer">📤 内藤運輸へ送信</button>';
+  html+='<button onclick="markShukkaDone(this)" style="margin-top:6px;width:100%;padding:9px;background:#fff;color:#6a1b9a;border:1px solid #6a1b9a;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer" title="電話・LINEなどで内藤運輸へ個別に伝えた品目。出荷依頼LINEは送らず、リマインドとタグ「出荷」だけ消します">✅ チェックした品目を処理済みにする（送らない）</button></div>';
   body.innerHTML=html;
   document.getElementById('shukkaModal').classList.add('show');
   shkManual=false; // 開くたび自動生成モードに戻す
@@ -3446,13 +3488,23 @@ function showShukkaLog(){
       const dt=`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}（${wd}）${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
       html+=`<div style="border:1px solid #e0e0e0;border-radius:8px;margin-top:10px;overflow:hidden">
         <div style="background:#f5f5f5;padding:6px 12px;font-size:13px;font-weight:700;color:#333;display:flex;justify-content:space-between;align-items:center">
-          <span>🚚 ${dt}</span><span style="color:#06842f;font-size:12px">${l.count||0}件</span></div>
+          <span>${l.manual?'✅':'🚚'} ${dt}${l.manual?' <span style="color:#6a1b9a;font-size:11px">手動で処理済み（送信なし）</span>':''}</span><span style="color:#06842f;font-size:12px">${l.count||0}件</span></div>
         <pre style="margin:0;padding:10px 12px;font-size:13px;white-space:pre-wrap;word-break:break-word;font-family:inherit;color:#222">${e(l.text||'')}</pre>
       </div>`;
     });
     html+='</div>';
     body.innerHTML=html;
   });
+}
+// 送らずに処理済み＝チェック中の未送信品目に shk_sent を付けるだけ（個別連絡で済ませた時用・2026-10-06）
+function markShukkaDone(btn){
+  const keys=[...document.querySelectorAll('.shk-cb:checked')].map(cb=>cb.dataset.key).filter(k=>{ const it=allItems.find(i=>itemKey(i)===k); return it && !it.shk_sent; });
+  if(!keys.length){ alert('処理済みにする未送信の品目がありません（チェックを入れてください）'); return; }
+  const lines=keys.map(k=>shkRowLabel(allItems.find(i=>itemKey(i)===k)));
+  if(!confirm('次の '+keys.length+' 件を「処理済み」にします（内藤運輸へは送りません）。よろしいですか？\n\n'+lines.join('\n'))) return;
+  if(!shkMarkKeys(keys,'✅ 手動で処理済み（個別連絡）\n'+lines.join('\n'),true)) return;
+  const orig=btn.textContent; btn.textContent='✅ 処理済みにしました'; btn.disabled=true;
+  setTimeout(()=>{btn.textContent=orig; btn.disabled=false; closeShukkaModal();},1200);
 }
 // 業者の出荷専用LINEへ自動送信（hayazai.com/shukka/send.php 経由でbroadcast）
 const SHUKKA_ENDPOINT='https://hayazai.com/shukka/send.php';
