@@ -1715,7 +1715,11 @@ const ORD_NG = '加工NG';
 function isOrdNg(it) { return String(getVal(it, 'order')) === ORD_NG; }
 // 市場(ネット/楽天/ヤフ以外)×西濃で送料が未設定 → 備考に「送料設定してください」（カットサンプル=長さ910mm未満は除外）
 // 送料は納品書1枚につき1行だけ入れるので、同じ取引先の西濃行のどれかに送料があれば設定済みとみなす
+// 「送料なし」ボタン＝soryo='0'（明示的な0円）。空欄(未設定)と区別し、0でも設定済み扱い（2026-10-07）
 const SORYO_NOTE = '送料設定してください';
+const SORYO_NONE = '0';
+function soryoIsSet(v) { const n = parseFloat(String(v == null ? '' : v).replace(/,/g, '')); return !isNaN(n) && n >= 0; }
+function soryoIsNone(v) { return soryoIsSet(v) && parseFloat(String(v).replace(/,/g, '')) === 0; }
 function needSoryoNote(it) {
   const cust = String(it.customer || '').trim();
   if (!cust || /ネット|楽天|ヤフ/.test(cust) || it.archived === '1' || !isSeino(it.carrier)) return false;
@@ -1723,7 +1727,7 @@ function needSoryoNote(it) {
   const len = parseInt(String(it.length || '').replace(/[^0-9]/g, ''), 10);
   if (len > 0 && len < SAMPLE_MAX_LEN) return false;
   return !allItems.some(o => o.archived !== '1' && String(o.customer || '').trim() === cust
-    && isSeino(o.carrier) && parseFloat(String(o.soryo || '').replace(/,/g, '')) > 0);
+    && isSeino(o.carrier) && soryoIsSet(o.soryo));
 }
 // 長さ910mm未満(300mm等)＝カットサンプル → 備考に「サンプル」（長さを変えたら自動で消える）
 const SAMPLE_NOTE = 'サンプル';
@@ -2213,7 +2217,7 @@ function rowMenuTags(it) {
   if (String(getVal(it, 'nouki_renraku')) === '1') t.push(['nouki', '納期']);
   if (getVal(it, 'important_note')) t.push(['note', 'メモ']);
   if (getVal(it, 'tokka')) t.push(['tokka', '特価']);
-  if (getVal(it, 'soryo')) t.push(['soryo', '送料']);
+  if (getVal(it, 'soryo')) t.push(['soryo', soryoIsNone(getVal(it, 'soryo')) ? '送無' : '送料']);
   if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
   if (shkPending(it)) t.push(['shk', '出荷']);
   if (srcUnknown(it)) t.push(['src', 'ソース?']);
@@ -2236,7 +2240,7 @@ function rowMenuBtnHtml(it, k) {
   const hasNouki = String(getVal(it, 'nouki_renraku')) === '1';
   const title = (hasNouki ? '📞納期連絡 未・' : '') + (hasNote ? '⚠️忘れちゃいけないメモあり・' : '')
     + (hasTokka ? `💴特価${getVal(it,'tokka')}円・` : '')
-    + (hasSoryo ? `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・` : '')
+    + (hasSoryo ? (soryoIsNone(getVal(it,'soryo')) ? '🚚送料なし・' : `🚚送料${Number(getVal(it,'soryo')).toLocaleString()}円・`) : '')
     + 'コピー・削除';
   const cls = (hasTokka ? ' has-tokka' : '') + (hasSoryo ? ' has-soryo' : '') + (hasNote ? ' has-note' : '') + (hasNouki ? ' has-nouki' : '');
   const TAG_TIP = { nouki: '納期連絡 未（⋯メニューで設定した連絡待ち）', note: '忘れちゃいけないメモあり', tokka: '特価設定あり', soryo: '送料設定あり', chaku: '着日指定あり', shk: '内藤運輸への出荷通知（出荷依頼LINE）がまだ。未送信が残っている日は平日9時に info@ へメールが届きます。電話やLINEで個別に済ませた時は ⋯メニューの「出荷通知 処理済み」で消せます', src: '発注ソース（元のFAX・メール）が見つかっていません' };
@@ -2244,7 +2248,7 @@ function rowMenuBtnHtml(it, k) {
   const yen = v => { const n = Number(v); return isNaN(n) ? String(v) : n.toLocaleString() + '円'; };
   if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ\n' + String(getVal(it, 'important_note'));
   if (hasTokka) TAG_TIP.tokka = '特価 ' + yen(getVal(it, 'tokka')) + '（今回のみの単価）';
-  if (hasSoryo) TAG_TIP.soryo = '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
+  if (hasSoryo) TAG_TIP.soryo = soryoIsNone(getVal(it, 'soryo')) ? '送料なし（0円で設定済み・納品書に運賃は入りません）' : '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
   if (getVal(it, 'chaku')) TAG_TIP.chaku = '着日指定 ' + fmtDue(getVal(it, 'chaku')) + (getVal(it, 'chaku_kbn') ? ' ' + getVal(it, 'chaku_kbn') : '');
   const tipAttr = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])).replace(/\r?\n/g, '&#10;');
   const tl = rowMenuTags(it);
@@ -2285,7 +2289,7 @@ function openRowMenu(btn, key, ev) {
     nkBtn +
     shkBtn +
     (_it && isSeino(getVal(_it, 'carrier')) ? `<button class="rm-seino" onclick="rowMenuSeino()">🚚 西濃送り状を作る</button>` : '') +
-    `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?`（${Number(_sr).toLocaleString()}円）`:''}</button>` +
+    `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?(soryoIsNone(_sr)?'（なし）':`（${Number(_sr).toLocaleString()}円）`):''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
   const r = btn.getBoundingClientRect();
@@ -2601,7 +2605,7 @@ function renderSoryoBody(val) {
     ${otherSum > 0 ? `<div class="sr-warn">⚠️ この取引先の他の行にも送料が入っています（${otherSum.toLocaleString()}円）。<br>納品書には合算して入るので、1枚につき1行だけに設定してください。</div>` : ''}
     <div class="sr-btns">
       <button class="sr-ok" onclick="soryoSave()">この送料で登録</button>
-      <button class="sr-clear" onclick="soryoClear()">送料なし</button>
+      <button class="sr-clear" onclick="soryoClear()" title="送料0円として登録します（備考の「送料設定してください」が消えます）">送料なし</button>
       <button class="sr-cancel" onclick="closeSoryoModal()">キャンセル</button>
     </div>`;
   onSoryoInput();
@@ -2626,7 +2630,8 @@ function onSoryoInput() {
   const yen = soryoInputYen();
   const set = (cls, html) => { box.className = 'sr-res ' + cls; box.innerHTML = html; };
   if (yen == null) { set('na', '金額を入れると、長さ・束数から該当する都道府県を自動で調べます。'); return; }
-  if (isNaN(yen) || yen <= 0) { set('ng', '金額は正の数字で入力してください。'); return; }
+  if (yen === 0) { set('ok', '送料なし（0円）として登録します。備考の「送料設定してください」は消え、納品書に運賃は入りません。'); return; }
+  if (isNaN(yen) || yen < 0) { set('ng', '金額は正の数字で入力してください。'); return; }
   if (!soryoTable) { set('na', soryoTableErr ? '運賃表を読み込めませんでした（手入力の金額でそのまま登録できます）。' : '運賃表を読み込み中…'); return; }
   if (!lk) { set('na', 'この長さは運賃表（西濃 2m/3m/4m）の対象外です。手入力の金額で登録します。'); return; }
   if (!bun) { set('na', '束数（予定/実際）が入っていないため照合できません。手入力の金額で登録します。'); return; }
@@ -2634,7 +2639,14 @@ function onSoryoInput() {
   if (hits.length) set('ok', `この金額は【${hits.join('・')}】　${lk.label} × ${bun}束 の送料です`);
   else set('ng', `${lk.label} × ${bun}束 の運賃表に一致する都道府県がありません（手入力扱いで登録できます）`);
 }
+// 「送料なし」＝0円で登録（未設定の空欄とは別物。備考の「送料設定してください」が消える）
 function soryoClear() {
+  if (!soryoKey) return;
+  saveField(soryoKey, 'soryo', SORYO_NONE);
+  closeSoryoModal();
+}
+// 送料の設定を取り消して未設定(空欄)に戻す
+function soryoUnset() {
   if (!soryoKey) return;
   saveField(soryoKey, 'soryo', '');
   closeSoryoModal();
@@ -2644,8 +2656,9 @@ function soryoSave() {
   const it = allItems.find(i => itemKey(i) === key);
   if (!it) return;
   const yen = soryoInputYen();
-  if (yen == null) { soryoClear(); return; }                       // 空 = 解除
-  if (isNaN(yen) || yen <= 0) { alert('送料は正の数字で入力してください'); return; }
+  if (yen == null) { soryoUnset(); return; }                       // 空 = 設定を取り消し（未設定に戻す）
+  if (yen === 0) { soryoClear(); return; }                         // 0 = 送料なし
+  if (isNaN(yen) || yen < 0) { alert('送料は正の数字で入力してください'); return; }
   const lk = soryoLenKey(getVal(it, 'length'));
   const bun = soryoBun(it);
   const hits = (soryoTable && lk && bun) ? soryoMatchPrefs(lk.k, bun, yen) : [];
