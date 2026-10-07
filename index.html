@@ -613,6 +613,50 @@ let showCalcCols = localStorage.getItem('show_calc_cols') === '1';
 let liveLoaded = false;
 const SRV_CACHE_KEY = 'kakou_srv_cache_v1';
 
+// 読み込み時の自動補正(備考メモ等)の無限ループ防止（2026-10-07）
+// 別端末・別タブで古い版が開いていると「古い版が書く→新しい版が消す」の書き合いが毎秒続き、
+// 全端末が再描画し続けてセルの編集が即解除される事故が起きた。同じ行への自動保存が短時間に続いたら
+// その行の自動補正を一時停止し、画面に「全端末を再読み込み」を促す警告を出す（黙らせない）
+const AUTO_FIX_MAX = 4, AUTO_FIX_WIN = 20000, AUTO_FIX_PAUSE = 300000;
+const autoFixLog = {};
+function autoFixAllowed(key) {
+  const now = Date.now();
+  const a = autoFixLog[key] || (autoFixLog[key] = { t: [], pausedUntil: 0 });
+  if (now < a.pausedUntil) return false;
+  a.t = a.t.filter(t => now - t < AUTO_FIX_WIN);
+  if (a.t.length >= AUTO_FIX_MAX) {
+    a.pausedUntil = now + AUTO_FIX_PAUSE; a.t = [];
+    console.warn('自動補正の書き合いを検知。5分停止:', key);
+    autoFixLoopWarn();
+    return false;
+  }
+  a.t.push(now);
+  return true;
+}
+function autoFixLoopWarn() {
+  if (document.getElementById('autofix-loop-warn')) return;
+  const d = document.createElement('div');
+  d.id = 'autofix-loop-warn';
+  d.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:9999;background:#fff;border:2px solid #c62828;border-radius:12px;box-shadow:0 6px 24px rgba(0,0,0,.25);padding:12px 18px;max-width:92vw;font-size:14px;line-height:1.6';
+  d.innerHTML = '<b style="color:#c62828">⚠ 別の端末かタブで古い版の加工予定表が開いています</b><br>'
+    + 'データの書き合いになっていたので、この行の自動補正を5分止めました。<br>'
+    + '開いている加工予定表を<b>すべて再読み込み（Ctrl+Shift+R）</b>してください。'
+    + '<button onclick="this.parentNode.remove()" style="margin-left:12px;padding:2px 10px">閉じる</button>';
+  document.body.appendChild(d);
+}
+
+// 他端末の保存で再描画されるとクリックした編集セルのフォーカスが飛ぶ。編集中は描画を保留し、セルを離れた時に描く
+let renderPending = false;
+function isCellEditing() {
+  const ae = document.activeElement;
+  return !!(ae && ae.getAttribute && ae.getAttribute('contenteditable') === 'true' && ae.closest('#mainArea'));
+}
+document.addEventListener('focusout', e => {
+  if (!renderPending) return;
+  const t = e.target;
+  if (t && t.getAttribute && t.getAttribute('contenteditable') === 'true') { renderPending = false; setTimeout(render, 0); }
+});
+
 function itemKey(it) {
   if (!it._uid) it._uid = it._uid || `${it._row}_${it.customer}_${it.hinmei}_${it.grade}_${it.thickness}_${it.length}`;
   return it._uid;
@@ -729,7 +773,7 @@ function loadData() {
       // 市場×西濃で送料が未設定なら備考に「送料設定してください」（設定・配送変更で自動で消える）
       if (applySoryoNote(it)) dirty = true;
       if (applySampleNote(it)) dirty = true;
-      if (dirty) saveItem(it);
+      if (dirty && autoFixAllowed(itemKey(it))) saveItem(it);
     });
 
     // Apply row order
@@ -745,7 +789,7 @@ function loadData() {
           return ai - bi;
         });
       }
-      render();
+      if (isCellEditing()) renderPending = true; else render();
       syncToSheet();
       srcKick();
       document.getElementById('lastUpdated').textContent =
