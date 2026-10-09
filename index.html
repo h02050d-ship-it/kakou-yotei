@@ -109,6 +109,12 @@
   .due-day.due-today { box-shadow: inset 0 0 0 1.5px #1a73e8; }
   .due-day.due-on { background: #1a73e8; color: #fff !important; }
   .due-sun { color: #d32f2f; } .due-sat { color: #1565c0; }
+  .due-day.due-hol { color: #d32f2f; background: #ffebee; }
+  .due-day.due-coh { color: #ad1457; background: #f8bbd0; }
+  .due-day.due-hol:hover, .due-day.due-coh:hover { background: #ffcdd2; }
+  .due-leg { display: flex; gap: 10px; justify-content: flex-end; margin-top: 5px; font-size: 10px; color: #666; font-weight: 700; }
+  .due-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 3px; }
+  .due-leg .l-hol { background: #ffebee; border: 1px solid #ef9a9a; } .due-leg .l-coh { background: #f8bbd0; border: 1px solid #f48fb1; }
   .due-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 12px; font-weight: 700; color: #444; }
   .due-foot label { display: flex; align-items: center; gap: 5px; cursor: pointer; }
   .due-foot input[type="checkbox"] { width: 16px; height: 16px; }
@@ -1810,47 +1816,65 @@ function onSealToggle(el){
 // 当日は「本日」(赤)、翌日は「明日」(黄)に置き換える。日付が変われば自動で繰り上がる（watchDayChange）
 const DUE_WD = ['㈰','㈪','㈫','㈬','㈭','㈮','㈯'];
 // ===== 営業日カレンダー（出荷日の「残り営業日」表示用）=====
-// 休み＝日曜・土曜(BIZ_SAT=falseのとき)・日本の祝日・会社休業日。年末年始/お盆などはCOMPANY_HOLIDAYSにISOで追加
+// 休み＝日曜・土曜(BIZ_SAT=falseのとき)・日本の祝日・会社休業日。
+// 会社休業日＝毎年のルール(COMPANY_HOLIDAY_RULES: 年末年始12/29〜1/3・お盆8/13〜8/16)＋個別追加(COMPANY_HOLIDAYS: ISO→名前)
+// ※ hayazai_website/line/pending_lib.php の静的表と同じ考え方。変えるときは両方そろえる
 const BIZ_SAT = false;
-const COMPANY_HOLIDAYS = [];
+const COMPANY_HOLIDAY_RULES = [
+  { from: '12-29', to: '12-31', name: '年末年始休業' },
+  { from: '01-01', to: '01-03', name: '年末年始休業' },
+  { from: '08-13', to: '08-16', name: 'お盆休業' },
+];
+const COMPANY_HOLIDAYS = { '2027-01-04': '年末年始休業' };
 const _holCache = {};
+// 国民の祝日（ISO→名前）。振替休日・国民の休日も含む（会社休業日は含まない）
 function jpHolidaySet(y) {
   if (_holCache[y]) return _holCache[y];
   const H = {};
   const iso = (m, d) => y + '-' + ('0' + m).slice(-2) + '-' + ('0' + d).slice(-2);
-  const add = (m, d) => { H[iso(m, d)] = 1; };
+  const add = (m, d, n) => { H[iso(m, d)] = n; };
   const nthMon = (m, n) => { const w = new Date(y, m - 1, 1).getDay(); return 1 + ((8 - w) % 7) + (n - 1) * 7; };
-  add(1, 1); add(1, nthMon(1, 2)); add(2, 11); add(2, 23);
-  add(3, Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)));
-  add(4, 29); add(5, 3); add(5, 4); add(5, 5);
-  add(7, nthMon(7, 3)); add(8, 11); add(9, nthMon(9, 3));
-  add(9, Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)));
-  add(10, nthMon(10, 2)); add(11, 3); add(11, 23);
+  add(1, 1, '元日'); add(1, nthMon(1, 2), '成人の日'); add(2, 11, '建国記念の日'); add(2, 23, '天皇誕生日');
+  add(3, Math.floor(20.8431 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)), '春分の日');
+  add(4, 29, '昭和の日'); add(5, 3, '憲法記念日'); add(5, 4, 'みどりの日'); add(5, 5, 'こどもの日');
+  add(7, nthMon(7, 3), '海の日'); add(8, 11, '山の日'); add(9, nthMon(9, 3), '敬老の日');
+  add(9, Math.floor(23.2488 + 0.242194 * (y - 1980) - Math.floor((y - 1980) / 4)), '秋分の日');
+  add(10, nthMon(10, 2), 'スポーツの日'); add(11, 3, '文化の日'); add(11, 23, '勤労感謝の日');
   // 振替休日（祝日が日曜→翌平日）
   Object.keys(H).forEach(k => {
     const d = new Date(k + 'T00:00:00');
-    if (d.getDay() === 0) { const n = new Date(d); do { n.setDate(n.getDate() + 1); } while (H[isoDate(n)]); H[isoDate(n)] = 1; }
+    if (d.getDay() === 0) { const n = new Date(d); do { n.setDate(n.getDate() + 1); } while (H[isoDate(n)]); H[isoDate(n)] = '振替休日'; }
   });
   // 国民の休日（祝日に挟まれた平日）
   Object.keys(H).forEach(k => {
     const d = new Date(k + 'T00:00:00'); const n = new Date(d); n.setDate(n.getDate() + 2);
-    if (H[isoDate(n)]) { const m = new Date(d); m.setDate(m.getDate() + 1); if (m.getDay() !== 0 && !H[isoDate(m)]) H[isoDate(m)] = 1; }
+    if (H[isoDate(n)]) { const m = new Date(d); m.setDate(m.getDate() + 1); if (m.getDay() !== 0 && !H[isoDate(m)]) H[isoDate(m)] = '国民の休日'; }
   });
-  COMPANY_HOLIDAYS.forEach(k => { if (k.startsWith(y + '-')) H[k] = 1; });
   _holCache[y] = H;
   return H;
+}
+// 会社休業日の名前（'' なら該当なし）
+function companyHolidayName(iso) {
+  if (COMPANY_HOLIDAYS[iso]) return COMPANY_HOLIDAYS[iso];
+  const md = iso.slice(5);
+  const r = COMPANY_HOLIDAY_RULES.find(r => md >= r.from && md <= r.to);
+  return r ? r.name : '';
 }
 function isoDate(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 function isWorkDay(d) {
   const w = d.getDay();
   if (w === 0 || (w === 6 && !BIZ_SAT)) return false;
-  return !jpHolidaySet(d.getFullYear())[isoDate(d)];
+  const iso = isoDate(d);
+  return !jpHolidaySet(d.getFullYear())[iso] && !companyHolidayName(iso);
 }
-// 休みの名前（カレンダー警告用）: '' なら営業日
+// 休みの名前（カレンダー警告・色分け用）: '' なら営業日。会社休業日＞祝日＞日曜＞土曜の順
 function dayOffName(d) {
-  const w = d.getDay();
+  const w = d.getDay(), iso = isoDate(d);
+  const co = companyHolidayName(iso);
+  if (co) return co;
+  const jp = jpHolidaySet(d.getFullYear())[iso];
+  if (jp) return '祝日（' + jp + '）';
   if (w === 0) return '日曜';
-  if (jpHolidaySet(d.getFullYear())[isoDate(d)]) return COMPANY_HOLIDAYS.includes(isoDate(d)) ? '休業日' : '祝日';
   if (w === 6 && !BIZ_SAT) return '土曜';
   return '';
 }
@@ -1973,9 +1997,13 @@ function renderDuePop() {
     if (dueSel.includes(iso)) cls.push('due-on');
     if (iso === todayIso) cls.push('due-today');
     if (wd === 0) cls.push('due-sun'); if (wd === 6) cls.push('due-sat');
-    h += `<button class="${cls.join(' ')}" onclick="duePick('${iso}')">${d}</button>`;
+    const co = companyHolidayName(iso), jp = co ? '' : jpHolidaySet(y)[iso];
+    if (co) cls.push('due-coh'); else if (jp) cls.push('due-hol');
+    const tt = co || jp || '';
+    h += `<button class="${cls.join(' ')}"${tt ? ` title="${tt}"` : ''} onclick="duePick('${iso}')">${d}</button>`;
   }
   h += '</div>';
+  h += '<div class="due-leg"><span><i class="l-hol"></i>祝日</span><span><i class="l-coh"></i>休業(年末年始・お盆)</span></div>';
   h += `<div class="due-foot"><label><input type="checkbox" ${dueMulti?'checked':''} onchange="dueMultiToggle(this)">複数選択（2日・or表示）</label><button class="due-clear" onclick="dueClear()">クリア</button></div>`;
   const it = allItems.find(i => itemKey(i) === dueKey);
   const kbn = String((it && it.due_kbn) || '');
