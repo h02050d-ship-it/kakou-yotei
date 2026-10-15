@@ -3305,10 +3305,11 @@ function kanryoItems(){
 }
 // 事前に納品書を作りたい時用: 製造中・結束予定の行も候補にする（既定OFF・ボタンから開くたびにOFFへ戻る）
 let nouhinIncludePending=false;
+// 長さ910mm未満(300mm等)はカットサンプル＝納品書を作らないので候補に出さない(2026-10-15)
 function nouhinCandidates(){
-  if(!nouhinIncludePending) return kanryoItems();
+  if(!nouhinIncludePending) return kanryoItems().filter(it=>!isCutSample(it));
   // 出荷完了でない行すべて。ただし加工NG(実際=配送確認/注文確定/支払確認)は注文未確定なので除外
-  return allItems.filter(it=> it.archived!=='1' && (shkDone(it) || (!isConfirmState(it) && !isOrdNg(it))));
+  return allItems.filter(it=> it.archived!=='1' && !isCutSample(it) && (shkDone(it) || (!isConfirmState(it) && !isOrdNg(it))));
 }
 function showNouhinModal(keepToggle){
   if(keepToggle!==true) nouhinIncludePending=false;
@@ -3367,7 +3368,7 @@ function buildNouhin(en){
   const num=v=>{ const n=parseFloat(String(v==null?'':v).replace(/,/g,'')); return isNaN(n)?null:n; };
   const custAbbrev = (typeof en==='string')? en : en.cust;
   const rows = (typeof en==='string')
-    ? kanryoItems().filter(it=> (it.customer||'').trim()===custAbbrev)
+    ? kanryoItems().filter(it=> (it.customer||'').trim()===custAbbrev && !isCutSample(it))
     : en.rows;
   const items = rows.map(it=>{
       const qty = num(it.actual); const pln = num(it.planned);
