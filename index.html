@@ -277,6 +277,10 @@
   .rm-tag.t-soryo { color: #1565c0; background: #e3f2fd; }
   .rm-tag.t-chaku { color: #e65100; background: #fff3e0; }
   .rm-tag.t-shk { color: #6a1b9a; background: #f3e5f5; }
+  .rm-tag.t-biko { color: #00695c; background: #e0f2f1; }
+  .rm-tag.t-hno { color: #c62828; background: #ffebee; border-style: dashed; }
+  .rowmenu-pop button.rm-biko { color: #00695c; }
+  .rowmenu-pop button.rm-biko:hover { background: #e0f2f1; }
   .rm-tag[data-tip] { cursor: help; }
   #tagTip { position: fixed; z-index: 9999; max-width: 320px; white-space: pre-wrap; word-break: break-word; padding: 5px 8px; font-size: 12px; line-height: 1.4; color: #fff; background: rgba(33,33,33,.92); border-radius: 4px; pointer-events: none; display: none; }
   .btn-rowmenu.has-tokka { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
@@ -676,7 +680,7 @@ function saveItem(it) {
   const k = itemKey(it);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','nouhin_biko','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
     data[f] = (it[f] !== undefined && it[f] !== '') ? it[f] : null;   // 空は削除(null)
   });
   // set(丸ごと)ではなく update(既知の項目だけ)にする。古いキャッシュ版ページ(SWRで更新直後は旧版が1回出る)が
@@ -2288,6 +2292,8 @@ function rowMenuTags(it) {
   const t = [];
   if (String(getVal(it, 'nouki_renraku')) === '1') t.push(['nouki', '納期']);
   if (getVal(it, 'important_note')) t.push(['note', 'メモ']);
+  if (getVal(it, 'nouhin_biko')) t.push(['biko', '備考']);
+  if (needHacchuNo(it)) t.push(['hno', '発No?']);
   if (getVal(it, 'tokka')) t.push(['tokka', '特価']);
   if (getVal(it, 'soryo')) t.push(['soryo', soryoIsNone(getVal(it, 'soryo')) ? '送無' : '送料']);
   if (getVal(it, 'chaku')) t.push(['chaku', '着日']);
@@ -2319,6 +2325,8 @@ function rowMenuBtnHtml(it, k) {
   // メモ・特価・送料・着日は中身（内容・金額）までツールチップに出す（2026-09-30）
   const yen = v => { const n = Number(v); return isNaN(n) ? String(v) : n.toLocaleString() + '円'; };
   if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ\n' + String(getVal(it, 'important_note'));
+  if (getVal(it, 'nouhin_biko')) TAG_TIP.biko = '納品書の備考に印字\n' + String(getVal(it, 'nouhin_biko'));
+  TAG_TIP.hno = 'この取引先は納品書・請求書に発注書番号が必要です。⋯→「📝 納品書の備考（発注No）」で入れてください';
   if (hasTokka) TAG_TIP.tokka = '特価 ' + yen(getVal(it, 'tokka')) + '（今回のみの単価）';
   if (hasSoryo) TAG_TIP.soryo = soryoIsNone(getVal(it, 'soryo')) ? '送料なし（0円で設定済み・納品書に運賃は入りません）' : '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
   if (getVal(it, 'chaku')) TAG_TIP.chaku = '着日指定 ' + fmtDue(getVal(it, 'chaku')) + (getVal(it, 'chaku_kbn') ? ' ' + getVal(it, 'chaku_kbn') : '');
@@ -2356,6 +2364,7 @@ function openRowMenu(btn, key, ev) {
     `<div class="rm-src"><div class="rm-src-h">📎 発注ソース</div><span class="rm-src-body">探しています…</span></div>` +
     `<button onclick="rowMenuCopy()">📋 コピー</button>` +
     `<button class="rm-note" onclick="rowMenuNote()">⚠️ 忘れちゃいけないメモ</button>` +
+    `<button class="rm-biko" onclick="rowMenuBiko()">📝 納品書の備考（発注No）${_it && getVal(_it,'nouhin_biko') ? '（' + String(getVal(_it,'nouhin_biko')).replace(/[&<>"]/g,'') + '）' : ''}</button>` +
     `<button class="rm-tokka" onclick="rowMenuTokka()">💴 特価設定${_tk?`（${Number(_tk).toLocaleString()}円）`:''}</button>` +
     `<button class="rm-setup" onclick="rowMenuChaku()">📅 着日指定${_ck?`（${_ck}）`:''}</button>` +
     nkBtn +
@@ -2460,6 +2469,26 @@ function rowMenuNote() {
   const v = prompt('この行で忘れちゃいけないこと（納期希望日など）を入力してください。\n納品書ツールで「加工予定表から呼出」した時にポップアップで表示されます。\n\n消す場合は空にして「OK」', cur);
   if (v === null) return;   // キャンセル
   saveField(key, 'important_note', v.trim());
+}
+// 納品書の備考（発注Noなど）。納品書呼出で備考欄に印字→確定でDB備考→請求書の備考にも転記（2026-10-16 本人指示）
+// 発注書番号の記載を求める取引先は、未入力だと⋯の左に「発No?」を出す（納品書ツール側の確定時チェックと同じ条件）
+const HACCHU_NO_REQ = /糸永/;
+function needHacchuNo(it) {
+  if (!HACCHU_NO_REQ.test(String(getVal(it, 'customer'))) || isArchived(itemKey(it))) return false;
+  if (Number(getVal(it, 'length')) && Number(getVal(it, 'length')) < SAMPLE_MAX_LEN) return false;   // カットサンプルは納品書対象外
+  return !/\d/.test(String(getVal(it, 'nouhin_biko')));
+}
+function rowMenuBiko() {
+  const key = rowMenuKey;
+  const it = allItems.find(i => itemKey(i) === key);
+  closeRowMenu();
+  if (!it) return;
+  let cur = getVal(it, 'nouhin_biko');
+  if (!cur && HACCHU_NO_REQ.test(String(getVal(it, 'customer')))) cur = '発注No.';
+  const v = prompt('納品書の備考欄に印字する文言を入力してください（例: 発注No.29694-1）。\n請求書の備考にも自動で載ります。\n\n消す場合は空にして「OK」', cur);
+  if (v === null) return;   // キャンセル
+  const s = v.trim();
+  saveField(key, 'nouhin_biko', /^発注No\.?$/.test(s) ? '' : s);
 }
 // 今回のみの特価（円/束）。納品書作成時にこの単価が自動反映される（価格表・DBの単価記憶は触らない）
 function rowMenuTokka() {
@@ -3406,7 +3435,11 @@ function buildNouhin(en){
     const r=String(it.remark||''); const m=[...r.matchAll(/【([^】]+)】/g)].map(x=>x[1].trim());
     if(!m.length){ const y=[...r.matchAll(/([^\s、。,.「」【】（）()はをのにとへで]+様分)/g)].map(x=>x[1]); m.push(...y); }   /* 助詞で区切る（「請求書は杉本様分」→「杉本様分」） */
     return m; }).filter(Boolean))];
-  if (bikoTexts.length) data.remarks = bikoTexts.join('　');
+  // ⋯メニュー「納品書の備考（発注No）」を先頭に
+  const nbiko = rows.map(it=>String(it.nouhin_biko||'').trim()).filter(Boolean);
+  bikoTexts.unshift(...nbiko.filter(s=>!bikoTexts.includes(s)));
+  const bikoAll = [...new Set(bikoTexts)];
+  if (bikoAll.length) data.remarks = bikoAll.join('　');
   // 特価設定の明細一覧（納品書側で「特価で単価設定済み」ポップアップに使う）
   const tokkaMsgs = [...new Set(items.filter(o=>o.price!=null).map(o=>
     [o.name, o.grade, o.l?o.l+'mm':''].filter(Boolean).join(' ') + '：' + o.price.toLocaleString() + '円/束'))];
