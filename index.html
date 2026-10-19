@@ -198,6 +198,13 @@
   .tbl-kanryo .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); border-right: none !important; font-weight: 700; }
   .tbl-kanryo td:last-child, .tbl-kanryo th:last-child { border-right: none !important; border-left: none !important; }
   .kanryo-scroll { max-height: 160px; overflow-y: auto; }
+  /* 製造完了・納品書未作成: 製造完了と同じ列構成だが薄くせず目立たせる */
+  .sec-minouhin h2 { color: #1565c0; }
+  .sec-minouhin h2::before { background: #1565c0; }
+  .tbl-minouhin thead th { background: #1565c0; }
+  .tbl-minouhin tbody tr { background: #fff; opacity: 1; }
+  .tbl-minouhin tbody tr:nth-child(even) { background: #f3f8ff; }
+  .tbl-minouhin tbody td { color: #212121; }
 
   .hm-F { background: #1565c0; }
   .hm-P { background: #2e7d32; }
@@ -1095,8 +1102,25 @@ function render() {
   html += '<div class="kanryo-spacer"></div>';
   html += '<div class="kanryo-section">';
 
-  // 製造完了 (exclude archived)
-  const kanryoVisible = kanryo.filter(i => !isArchived(itemKey(i)));
+  // 製造完了 (exclude archived)。納品書未作成の行は上の専用欄へ分ける
+  const kanryoOpen = kanryo.filter(i => !isArchived(itemKey(i)));
+  const minouhin = kanryoOpen.filter(needsNouhin);
+  const kanryoVisible = kanryoOpen.filter(i => !needsNouhin(i));
+
+  // 製造完了・納品書未作成（0件なら見出しごと出さない）
+  if (minouhin.length) {
+    html += `<div class="sec-head sec-minouhin"><h2>製造完了・納品書未作成</h2><span class="count">${minouhin.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button></div>`;
+    html += `<div class="table-scroll"><table class="tbl-kanryo tbl-minouhin" id="tbl-minouhin"><thead><tr>`;
+    kanryoCols.forEach((c,i) => {
+      html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
+    });
+    html += `<th style="width:${menuColW(minouhin)}"></th><th></th></tr></thead><tbody>`;
+    minouhin.forEach(it => {
+      const k = itemKey(it);
+      html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
+    });
+    html += '</tbody></table></div>';
+  }
   // 出荷日時。納品書ツール経由の出荷完了はarchived_atが無いので完了日時で代替
   const shipTs = it => it.archived_at || it.completed_at || 0;
   const kanryoArchivedAll = kanryo.filter(i => isArchived(itemKey(i)))
@@ -2226,6 +2250,16 @@ function onMarkToggle(el){
   saveField(key, f, newVal);
 }
 
+// 製造完了(9)・未出荷で納品書がまだの行（📄印なし）。EC行（ネット/楽天/ヤフ）は自動納品書・910mm未満はカットサンプルなので対象外
+function needsNouhin(it) {
+  if (!it || it.archived === '1') return false;
+  const ord = parseInt(getVal(it, 'order'), 10);
+  if (isNaN(ord) || ord < 9 || isOrdNg(it)) return false;
+  if (String(getVal(it, 'nouhin_pre')) === '1') return false;
+  if (/ネット|楽天|ヤフ/.test(String(it.customer || ''))) return false;
+  const sampleLen = parseInt(getVal(it, 'length'), 10);
+  return !(sampleLen && sampleLen < SAMPLE_MAX_LEN);
+}
 function isArchived(key) {
   const it = allItems.find(i => itemKey(i) === key);
   return it && it.archived === '1';
@@ -2234,8 +2268,7 @@ function onArchive(key) {
   const it = allItems.find(i => itemKey(i) === key);
   if (!it) return;
   // 納品書未作成（📄印なし）の市場・手入力行は確認。EC行（ネット/楽天/ヤフ）は自動納品書があるので対象外・長さ910mm未満(300mm等)はカットサンプル＝納品書なし
-  const sampleLen = parseInt(getVal(it, 'length'), 10);
-  if (String(getVal(it, 'nouhin_pre')) !== '1' && !/ネット|楽天|ヤフ/.test(String(it.customer || '')) && !(sampleLen && sampleLen < SAMPLE_MAX_LEN)) {
+  if (needsNouhin(it)) {
     if (!confirm('納品書が未作成のようです（📄印なし）。出荷完了にしますか？')) return;
   }
   it.archived = '1'; it.archived_at = Date.now(); saveItem(it); logEcShip(it);
