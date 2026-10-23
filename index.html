@@ -360,6 +360,11 @@
     padding: 2px 8px; font-size: 12px; cursor: pointer; white-space: nowrap;
   }
   .btn-ship:hover { background: #eceff1; }
+  .btn-mknouhin {
+    background: #1a73e8; border: 1px solid #1a73e8; color: #fff; border-radius: 4px;
+    padding: 2px 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; margin-right: 4px;
+  }
+  .btn-mknouhin:hover { background: #1558b0; }
   /* 製造完了: 備考右端のうっすら削除マーク（完全削除） */
   td.rmk { position: relative; }
   .tbl-kanryo .rmk { padding-right: 26px !important; }
@@ -1117,7 +1122,7 @@ function render() {
     html += `<th style="width:${menuColW(minouhin)}"></th><th></th></tr></thead><tbody>`;
     minouhin.forEach(it => {
       const k = itemKey(it);
-      html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
+      html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td style="white-space:nowrap"><button class="btn-mknouhin" onclick="nouhinForRow('${k}')" title="この取引先（同じ配送）の納品書を、明細を呼び出した状態で開く">📄 納品書作成</button><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
     });
     html += '</tbody></table></div>';
   }
@@ -1512,7 +1517,7 @@ function getTd(el) {
   if (!el) return null;
   const td = el.closest('td');
   if (!td) return null;
-  if (td.querySelector('.btn-del, .btn-restore, .btn-ship, .btn-rowmenu')) return null;
+  if (td.querySelector('.btn-del, .btn-restore, .btn-ship, .btn-mknouhin, .btn-rowmenu')) return null;
   if (!td.closest('.tbl-kessoku, .tbl-seizou, .tbl-kanryo')) return null;
   return td;
 }
@@ -1541,7 +1546,7 @@ function selectRange(anchorTd, targetTd) {
     if (!row) continue;
     for (let c = c1; c <= c2; c++) {
       const td = row.children[c];
-      if (td && !td.querySelector('.btn-del, .btn-restore, .btn-ship, .btn-rowmenu')) td.classList.add('cell-selected');
+      if (td && !td.querySelector('.btn-del, .btn-restore, .btn-ship, .btn-mknouhin, .btn-rowmenu')) td.classList.add('cell-selected');
     }
   }
 }
@@ -1549,7 +1554,7 @@ function selectRange(anchorTd, targetTd) {
 function selectEntireRow(tr) {
   clearCellSel();
   Array.from(tr.children).forEach(td => {
-    if (!td.classList.contains('drag-handle') && !td.querySelector('.btn-del, .btn-restore, .btn-ship, .btn-rowmenu')) {
+    if (!td.classList.contains('drag-handle') && !td.querySelector('.btn-del, .btn-restore, .btn-ship, .btn-mknouhin, .btn-rowmenu')) {
       td.classList.add('cell-selected');
     }
   });
@@ -3373,8 +3378,8 @@ function nouhinCandidates(){
   // 出荷完了でない行すべて。ただし加工NG(実際=配送確認/注文確定/支払確認)は注文未確定なので除外
   return allItems.filter(it=> it.archived!=='1' && !isCutSample(it) && (shkDone(it) || (!isConfirmState(it) && !isOrdNg(it))));
 }
-function showNouhinModal(keepToggle){
-  if(keepToggle!==true) nouhinIncludePending=false;
+// 候補を取引先ごと（配送が2種類以上なら配送ごと）のエントリにまとめる。呼出一覧と行の「📄納品書作成」で共通
+function nouhinEntries(){
   const groups={};
   // ヤフ・楽天（EC個人客）は納品書を作らないため候補から除外
   const skip = c => /^(ヤフ|楽天)/.test(c);
@@ -3390,6 +3395,11 @@ function showNouhinModal(keepToggle){
     Object.keys(byCar).forEach(k=> entries.push({cust:c, carrier:k, rows:byCar[k], label:(k||'配送未設定')}));
   });
   entries.sort((a,b)=>{ const d=fullName(a.cust).localeCompare(fullName(b.cust),'ja'); return d!==0? d : a.carrier.localeCompare(b.carrier,'ja'); });
+  return entries;
+}
+function showNouhinModal(keepToggle){
+  if(keepToggle!==true) nouhinIncludePending=false;
+  const entries=nouhinEntries();
   const body=document.getElementById('nouhinModalBody');
   const toggleHtml='<div style="padding:8px 20px 4px;font-size:12px"><label style="cursor:pointer;color:#e65100;font-weight:700"><input type="checkbox" id="nouhinPendingChk" '+(nouhinIncludePending?'checked':'')+' onchange="nouhinIncludePending=this.checked;showNouhinModal(true)"> 製造中・結束予定の行も表示（事前に納品書を作るとき）</label>'
     +(nouhinIncludePending? '<div style="color:#888;margin-top:2px">製造中の行は「予定」の束数で呼び出します（納品書側で橙色＝要確認）。確定しても製造中の分は出荷完了にならず、この表に📄の印だけ付きます。</div>':'')+'</div>';
@@ -3423,6 +3433,13 @@ function showNouhinModal(keepToggle){
     body.querySelectorAll('tr[data-i]').forEach(tr=> tr.addEventListener('click',()=> buildNouhin(entries[+tr.dataset.i])));
   }
   document.getElementById('nouhinModal').classList.add('show');
+}
+// 「製造完了・納品書未作成」欄の行ボタン: その行を含むエントリ（同じ取引先・同じ配送の製造完了分）で納品書ツールを開く
+function nouhinForRow(key){
+  nouhinIncludePending=false;
+  const en=nouhinEntries().find(e=> e.rows.some(it=> itemKey(it)===key));
+  if(!en){ alert('この行は納品書の呼出対象になっていません（ヤフ・楽天、取引先空欄など）'); return; }
+  buildNouhin(en);
 }
 function closeNouhinModal(){ document.getElementById('nouhinModal').classList.remove('show'); }
 // en = {cust, carrier, rows, label}（配送で分割済みのエントリ）。後方互換で取引先名の文字列も受ける。
