@@ -3501,6 +3501,9 @@ function buildNouhin(en){
   const tokkaMsgs = [...new Set(items.filter(o=>o.price!=null).map(o=>
     [o.name, o.grade, o.l?o.l+'mm':''].filter(Boolean).join(' ') + '：' + o.price.toLocaleString() + '円/束'))];
   if (tokkaMsgs.length) data.tokka = tokkaMsgs;
+  // 出荷日（due・複数日はカンマ区切り）＝納品書側で日付と違えば確認ポップアップ（2026-10-26）
+  const shipDates = [...new Set(rows.flatMap(it=> String(it.due||'').split(',').filter(s=>/^\d{4}-\d{2}-\d{2}$/.test(s))))].sort();
+  if (shipDates.length) data.shipDates = shipDates;
   const url = NOUHIN_URL + '#data=' + encodeURIComponent(JSON.stringify(data));
   window.open(url, '_blank');
   closeNouhinModal();
