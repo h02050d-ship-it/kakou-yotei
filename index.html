@@ -3548,7 +3548,7 @@ function shkAlertHtml(){
   if(!rows.length) return '';
   const g=shkGroups(rows);
   const list=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja')).map(c=>
-    e(c)+'（'+g[c].map(it=>{ const b=shkBun(it); return shkLenM(it.length)+' '+(b!=null?b+'束':'?束')+(shkDone(it)?'':'・製造中'); }).join('／')+'）'
+    e(c)+'（'+g[c].map(it=>{ const b=shkBun(it); return e(((it.grade||'')+' ').trimStart())+shkLenM(it.length)+' '+(b!=null?b+'束':'?束')+(shkDone(it)?'':'・製造中'); }).join('／')+'）'
   ).join('　');
   return `<div class="shk-alert" title="出荷依頼LINEを送るか、電話・LINEで個別に済ませた時は出荷依頼の画面で「処理済み」にすると消えます"><span>🚚 内藤運輸への出荷通知がまだ ${rows.length}品目</span><span class="shk-alert-list">${list}</span><button onclick="showShukkaModal()">出荷依頼を開く</button></div>`;
 }
