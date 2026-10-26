@@ -198,6 +198,10 @@
   .tbl-kanryo .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(12px, 0.8vw, 16px); border-right: none !important; font-weight: 700; }
   .tbl-kanryo td:last-child, .tbl-kanryo th:last-child { border-right: none !important; border-left: none !important; }
   .kanryo-scroll { max-height: 160px; overflow-y: auto; }
+  /* 内藤運輸への出荷通知がまだの品目があるときだけ一番上に出す帯（0件なら出さない） */
+  .shk-alert { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; padding: 8px 14px; background: #f3e5f5; border: 2px solid #6a1b9a; border-radius: 8px; color: #4a148c; font-weight: 700; font-size: clamp(13px, 0.9vw, 17px); }
+  .shk-alert .shk-alert-list { font-weight: 600; color: #6a1b9a; flex: 1; min-width: 200px; }
+  .shk-alert button { background: #6a1b9a; color: #fff; border: none; border-radius: 6px; padding: 6px 14px; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
   /* 製造完了・納品書未作成: 製造完了と同じ列構成だが薄くせず目立たせる */
   .sec-minouhin h2 { color: #1565c0; }
   .sec-minouhin h2::before { background: #1565c0; }
@@ -1070,6 +1074,9 @@ function render() {
   const seizouchu = [...underNine].sort((a,b)=> a._ord - b._ord);
 
   let html = '<div class="main-content">';
+
+  // 内藤運輸への出荷通知(出荷依頼LINE)がまだの品目＝タグ「出荷」と同じ判定。0件なら出さない
+  html += shkAlertHtml();
 
   // 結束順
   const kessokuCols = cols.filter(c => c !== 'zaiko');
@@ -3534,6 +3541,17 @@ function toggleShkEdit(btn){
 }
 function shkStatusLabel(it){ return shkDone(it)?'完了':'未完了'; }
 function shkCandidates(){ return allItems.filter(shkCand); }
+// 一番上の帯「内藤運輸への出荷通知がまだ」。取引先ごとに 長さ 束数 を並べる（2026-10-26 本人指示）
+function shkAlertHtml(){
+  const e=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const rows=allItems.filter(shkPending);
+  if(!rows.length) return '';
+  const g=shkGroups(rows);
+  const list=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja')).map(c=>
+    e(c)+'（'+g[c].map(it=>{ const b=shkBun(it); return shkLenM(it.length)+' '+(b!=null?b+'束':'?束')+(shkDone(it)?'':'・製造中'); }).join('／')+'）'
+  ).join('　');
+  return `<div class="shk-alert" title="出荷依頼LINEを送るか、電話・LINEで個別に済ませた時は出荷依頼の画面で「処理済み」にすると消えます"><span>🚚 内藤運輸への出荷通知がまだ ${rows.length}品目</span><span class="shk-alert-list">${list}</span><button onclick="showShukkaModal()">出荷依頼を開く</button></div>`;
+}
 function shkCand(it){ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; if((it.carrier||'')==='西濃') return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true;
 }
 // 取引先ごとにグループ化。各群内は完了→未完了、長さ昇順。
