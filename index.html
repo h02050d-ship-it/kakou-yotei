@@ -711,7 +711,27 @@ function saveField(key, field, val) {
   // サーバー未受信中は画面の値も書き換えない（書き換えると「保存済みに見えて次の受信で戻る」）2026-09-18
   if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); render(); return; }
   const it = allItems.find(i => itemKey(i) === key);
-  if (it) { it[field] = val; saveItem(it); if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); } if (field === 'customer') srcResolveSoon(key); if (field === 'length' && applySampleNote(it)) { saveItem(it); render(); } }
+  if (it) {
+    it[field] = val;
+    // 長さに連動する入数・「サンプル」備考は長さと同じ1回の書き込みに入れる。
+    // 分けて書くと、別端末が途中の状態(長さ300・入数8)を見て自動補正を書き戻し、入数が元に戻る(2026-11-04)
+    if (field === 'length') {
+      const qs = QTY_BY_LENGTH[String(val)];
+      if (qs) it.qty = qs[0];
+      applySampleNote(it);
+    }
+    saveItem(it);
+    if (field === 'due') { ichibaDueNotify(it); noukiDuePrompt(it); }
+    if (field === 'customer') srcResolveSoon(key);
+  }
+}
+// 読み込み時の自動補正は「変えた項目だけ」書く。行全体を書くと、他端末が直前に保存した値を古い値で消してしまう
+function saveAutoFix(it, orig) {
+  const diff = {};
+  Object.keys({ ...orig, ...it }).forEach(f => {
+    if (f !== '_uid' && it[f] !== orig[f]) diff[f] = (it[f] !== undefined && it[f] !== '') ? it[f] : null;
+  });
+  if (Object.keys(diff).length) db.ref('items/' + itemKey(it).replace(/[.#$/[]]/g, '_')).update(diff);
 }
 
 // 市場系(EC以外)の行に出荷日が入ったら、納品書GASが取引先マスタ(取引方法=市売)で判定して
@@ -737,6 +757,37 @@ function saveColOrder(cols) {
 function saveRowOrder(order) { db.ref('settings/rowOrder').set(order); }
 
 // Load all data from Firebase and listen for changes
+let rowOrderCache = null;          // settings/rowOrder の最新値（null=まだ受信していない）
+let rowOrderSubscribed = false;
+let itemsRenderTimer = null;
+// allItems を保存済みの並び順へ。並び順に無い行（行追加した直後など）は後ろへ
+function applyRowOrder() {
+  if (!rowOrderCache || !rowOrderCache.length) return;
+  const pos = new Map();
+  rowOrderCache.forEach((k, i) => { if (!pos.has(k)) pos.set(k, i); });
+  allItems.sort((a, b) => {
+    const ai = pos.has(itemKey(a)) ? pos.get(itemKey(a)) : Infinity;
+    const bi = pos.has(itemKey(b)) ? pos.get(itemKey(b)) : Infinity;
+    return ai === bi ? 0 : ai - bi;
+  });
+}
+// 保存直後は受信が連続するのでまとめて1回だけ描く。少し待つのは、セルからセルへ移る操作の途中で
+// 表を作り直さないため（移った先が編集セルなら isCellEditing で離れる時まで保留される）
+function scheduleItemsRender() {
+  clearTimeout(itemsRenderTimer);
+  itemsRenderTimer = setTimeout(afterItemsReceived, 120);
+}
+function afterItemsReceived() {
+  if (rowOrderCache === null) return;   // 並び順の初回受信後に描く
+  if (isCellEditing()) renderPending = true; else render();
+  syncToSheet();
+  srcKick();
+  document.getElementById('lastUpdated').textContent =
+    new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
+  // 起動高速化: 次回起動の即表示用に表示中データを保存
+  try { localStorage.setItem(SRV_CACHE_KEY, JSON.stringify({ t: Date.now(), items: allItems, colOrder: colOrder })); } catch (e) {}
+}
+
 function loadData() {
   loadLearn();   // 学習データ（settings/learn）の購読も認証後に開始
   loadSrcs();    // 発注ソースの特定結果（srcs）
@@ -750,6 +801,19 @@ function loadData() {
     if (s.val() === false && allItems.length) { el.textContent = '⚠ サーバー未接続（前回データ表示中）'; el.style.color = '#c0392b'; }
     else if (s.val() === true && el.style.color) { el.style.color = ''; }
   });
+  // 並び順は購読して手元に持つ。受信のたびに取りに行くと、返事が来るまでの間 allItems が
+  // キー順(add_→od_)のままになり、その間に描画すると楽天の行が一瞬下へ動いていた(2026-11-04)
+  if (!rowOrderSubscribed) {
+    rowOrderSubscribed = true;
+    db.ref('settings/rowOrder').on('value', s => {
+      const v = s.val();
+      rowOrderCache = Array.isArray(v) ? v : (v ? Object.values(v) : []);
+      applyRowOrder();
+      if (liveLoaded) scheduleItemsRender();
+    }, () => {
+      if (rowOrderCache === null) { rowOrderCache = []; if (liveLoaded) scheduleItemsRender(); }
+    });
+  }
   // Listen for real-time changes
   db.ref('items').on('value', snap => {
     liveLoaded = true;   // サーバーの実データ受信＝以後は保存OK
@@ -758,12 +822,14 @@ function loadData() {
       it._uid = it._uid || Object.keys(data).find(k => data[k] === it);
       return it;
     });
+    applyRowOrder();
 
     // B等級は全て加工在庫: 加在が未チェックなら自動チェック
     // 旧表記「B無節特上」「B無特上」は「B特上小」へ自動移行
     // ネット/楽天/ヤフの備考に入った佐川/西濃は「配送」列へ自動移行（備考からは除去）
     allItems.forEach(it => {
       let dirty = false;
+      const orig = { ...it };
       if (it.grade === 'B無節特上' || it.grade === 'B無特上') { it.grade = 'B特上小'; dirty = true; }
       // 備考の「B級品」は等級名へ移行（B丸節/B特上小で表せる場合のみ・表せない等級は備考のまま残す）
       if (/B級品/.test(String(it.remark || '')) && !/^B/.test(String(it.grade || ''))) {
@@ -802,30 +868,10 @@ function loadData() {
       // 市場×西濃で送料が未設定なら備考に「送料設定してください」（設定・配送変更で自動で消える）
       if (applySoryoNote(it)) dirty = true;
       if (applySampleNote(it)) dirty = true;
-      if (dirty && autoFixAllowed(itemKey(it))) saveItem(it);
+      if (dirty && autoFixAllowed(itemKey(it))) saveAutoFix(it, orig);
     });
 
-    // Apply row order
-    db.ref('settings/rowOrder').once('value').catch(() => null).then(roSnap => {
-      const order = (roSnap && roSnap.val && roSnap.val()) || [];
-      if (order.length) {
-        allItems.sort((a, b) => {
-          const ai = order.indexOf(itemKey(a));
-          const bi = order.indexOf(itemKey(b));
-          if (ai === -1 && bi === -1) return 0;
-          if (ai === -1) return 1;
-          if (bi === -1) return -1;
-          return ai - bi;
-        });
-      }
-      if (isCellEditing()) renderPending = true; else render();
-      syncToSheet();
-      srcKick();
-      document.getElementById('lastUpdated').textContent =
-        new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}) + ' 更新';
-      // 起動高速化: 次回起動の即表示用に表示中データを保存
-      try { localStorage.setItem(SRV_CACHE_KEY, JSON.stringify({ t: Date.now(), items: allItems, colOrder: colOrder })); } catch (e) {}
-    });
+    scheduleItemsRender();
   }, err => {
     // 2026-09-18 購読が切れた/拒否された時は黙らず表示（以後の保存はliveLoaded=falseで拒否される）
     liveLoaded = false;
@@ -1718,10 +1764,8 @@ function autoCustLength(key) {
   saveField(key, 'length', d.length);
   onLengthSet(key, d.length);
 }
-// 長さ設定時: 入数をその長さのデフォルト（先頭）に自動切替＋配送業者の自動選択
+// 長さ設定時: 配送業者の自動選択（入数はsaveFieldが長さと同時に先頭の値へ切り替える）
 function onLengthSet(key, val) {
-  const qs = QTY_BY_LENGTH[String(val)];
-  if (qs) saveField(key, 'qty', qs[0]);
   autoCarrier(key);
 }
 // ネット・楽天・ヤフを含む取引先: 910=佐川、1820/3000/4000=西濃 を「配送」列に自動選択（備考には入れない）
