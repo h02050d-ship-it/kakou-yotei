@@ -373,6 +373,9 @@
     padding: 2px 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; margin-right: 4px;
   }
   .btn-mknouhin:hover { background: #1558b0; }
+  .btn-mnmore { background: #e3f2fd; border: 1px solid #90caf9; color: #1565c0; border-radius: 4px; padding: 2px 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; margin-right: 4px; }
+  .btn-mnmore:hover { background: #bbdefb; }
+  .tbl-minouhin tbody tr[data-mnsub] td:first-child { box-shadow: inset 4px 0 0 #90caf9; }
   /* 製造完了: 備考右端のうっすら削除マーク（完全削除） */
   td.rmk { position: relative; }
   .tbl-kanryo .rmk { padding-right: 26px !important; }
@@ -1177,10 +1180,31 @@ function render() {
       html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
     });
     html += `<th style="width:${menuColW(minouhin)}"></th><th></th></tr></thead><tbody>`;
+    // 同じ取引先×同じ配送（＝納品書1枚の単位）は代表1行＋「他N件」にまとめる。押すと残りを展開
+    const mnGroups = [], mnIdx = {};
     minouhin.forEach(it => {
-      const k = itemKey(it);
-      html += buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td style="white-space:nowrap"><button class="btn-mknouhin" onclick="nouhinForRow('${k}')" title="この取引先（同じ配送）の納品書を、明細を呼び出した状態で開く">📄 納品書作成</button><button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
+      const gk = minouhinGroupKey(it);
+      if (!(gk in mnIdx)) { mnIdx[gk] = mnGroups.length; mnGroups.push({gk, rows: []}); }
+      mnGroups[mnIdx[gk]].rows.push(it);
     });
+    mnGroups.forEach(g => {
+      const open = minouhinOpen.has(g.gk);
+      g.rows.forEach((it, ri) => {
+        if (ri > 0 && !open) return;
+        const k = itemKey(it);
+        let more = '';
+        if (ri === 0 && g.rows.length > 1) {
+          const tip = g.rows.slice(1).map(r => [r.grade, r.length, (r.actual||r.planned||'') + '束'].filter(Boolean).join(' ')).join(' ／ ');
+          more = `<button class="btn-mnmore" onclick="toggleMinouhin(${mnIdx[g.gk]})" title="${escAttr(tip)}">${open ? '▴ たたむ' : '他' + (g.rows.length - 1) + '件 ▾'}</button>`;
+        }
+        const btns = ri === 0
+          ? `${more}<button class="btn-mknouhin" onclick="nouhinForRow('${k}')" title="この取引先（同じ配送）の納品書を、明細を呼び出した状態で開く">📄 納品書作成</button>`
+          : '';
+        const tr = buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td style="white-space:nowrap">${btns}<button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
+        html += ri > 0 ? tr.replace(/^<tr/, '<tr data-mnsub="1"') : tr;
+      });
+    });
+    window._mnGroupKeys = mnGroups.map(g => g.gk);
     html += '</tbody></table></div>';
   }
   // 出荷日時。納品書ツール経由の出荷完了はarchived_atが無いので完了日時で代替
@@ -2374,6 +2398,15 @@ function onArchDate(key, val) {
   saveItem(it);
 }
 function toggleArchive() { showArchive = !showArchive; render(); }
+// 納品書未作成欄: 取引先×配送でまとめる（納品書の呼出単位 nouhinEntries と同じ切り方）
+const minouhinOpen = new Set();
+function escAttr(t) { return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function minouhinGroupKey(it) { return String(it.customer||'').trim() + '|' + String(it.carrier||'').trim(); }
+function toggleMinouhin(i) {
+  const gk = (window._mnGroupKeys||[])[i]; if (gk == null) return;
+  if (minouhinOpen.has(gk)) minouhinOpen.delete(gk); else minouhinOpen.add(gk);
+  render();
+}
 function toggleCalcCols() { showCalcCols = !showCalcCols; localStorage.setItem('show_calc_cols', showCalcCols ? '1' : ''); render(); }
 
 function onDeleteRow(key) {
