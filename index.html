@@ -291,6 +291,7 @@
   .rm-tag.t-shkok { color: #fff; background: #06C755; border-color: #06C755; }   /* 出荷依頼ボタンと同じ黄緑 */
   .rm-tag.t-biko { color: #00695c; background: #e0f2f1; }
   .rm-tag.t-hno { color: #c62828; background: #ffebee; border-style: dashed; }
+  .rm-tag.t-juchu { color: #bf0000; background: #fff; }   /* 楽天の受注日 */
   .rowmenu-pop button.rm-biko { color: #00695c; }
   .rowmenu-pop button.rm-biko:hover { background: #e0f2f1; }
   .rm-tag[data-tip] { cursor: help; }
@@ -2392,7 +2393,19 @@ function rowMenuTags(it) {
   if (shkPending(it)) t.push(['shk', '出荷']);
   else if (it.shk_sent && it.archived !== '1') t.push(['shkok', '🚚依頼済']);   // 内藤運輸へ出荷依頼(通知)済み（2026-10-26 本人指示）
   if (srcUnknown(it)) t.push(['src', 'ソース?']);
+  const jd = rakutenJuchuDate(it);   // 楽天は受注日を一番右に（2026-11-11 本人指示）
+  if (jd) t.push(['juchu', '受' + (jd.getMonth() + 1) + '/' + jd.getDate()]);
   return t;
+}
+// 楽天の受注日＝注文番号 419337-YYYYMMDD-xxxx の日付部分（行キー→備考の順に探す）
+function rakutenJuchuDate(it) {
+  const k = String(it._uid || itemKey(it) || '');
+  const cust = String(getVal(it, 'customer') || '');
+  if (!/^od_rakuten_/.test(k) && !/楽天/.test(cust)) return null;
+  const m = (k + ' ' + String(getVal(it, 'remark') || '')).match(/\d{6}-(20\d{2})(\d{2})(\d{2})-\d+/);
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return isNaN(d) ? null : d;
 }
 // ⋯列の幅: 既定は⋯ボタンだけの最小幅。タグは上下2段に積み、要る分だけ横に広げる（備考欄優先 2026-09-28）
 const tagW = l => [...l].reduce((a, ch) => a + (ch.charCodeAt(0) > 255 ? 8.5 : 4.5), 6);   // 実測: 2文字=23px・「ソース?」=36px
@@ -2420,6 +2433,7 @@ function rowMenuBtnHtml(it, k) {
   if (hasNote) TAG_TIP.note = '忘れちゃいけないメモ\n' + String(getVal(it, 'important_note'));
   if (getVal(it, 'nouhin_biko')) TAG_TIP.biko = '納品書の備考に印字\n' + String(getVal(it, 'nouhin_biko'));
   if (it.shk_sent) TAG_TIP.shkok = '内藤運輸へ出荷依頼済み（' + shkSentLabel(it) + '）\n未送信に戻すときは ⋯メニューから';
+  { const jd = rakutenJuchuDate(it); if (jd) TAG_TIP.juchu = '楽天の受注日 ' + (jd.getMonth() + 1) + '/' + jd.getDate() + '（' + '日月火水木金土'[jd.getDay()] + '）・' + Math.round((new Date(new Date().toDateString()) - jd) / 864e5) + '日前'; }
   TAG_TIP.hno = 'この取引先は納品書・請求書に発注書番号が必要です。⋯→「📝 納品書の備考（発注No）」で入れてください';
   if (hasTokka) TAG_TIP.tokka = '特価 ' + yen(getVal(it, 'tokka')) + '（今回のみの単価）';
   if (hasSoryo) TAG_TIP.soryo = soryoIsNone(getVal(it, 'soryo')) ? '送料なし（0円で設定済み・納品書に運賃は入りません）' : '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
