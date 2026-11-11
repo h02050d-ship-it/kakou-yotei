@@ -1174,12 +1174,6 @@ function render() {
 
   // 製造完了・納品書未作成（0件なら見出しごと出さない）
   if (minouhin.length) {
-    html += `<div class="sec-head sec-minouhin"><h2>製造完了・納品書未作成</h2><span class="count">${minouhin.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button></div>`;
-    html += `<div class="table-scroll"><table class="tbl-kanryo tbl-minouhin" id="tbl-minouhin"><thead><tr>`;
-    kanryoCols.forEach((c,i) => {
-      html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
-    });
-    html += `<th style="width:${menuColW(minouhin)}"></th><th></th></tr></thead><tbody>`;
     // 同じ取引先×同じ配送（＝納品書1枚の単位）は代表1行＋「他N件」にまとめる。押すと残りを展開
     const mnGroups = [], mnIdx = {};
     minouhin.forEach(it => {
@@ -1187,6 +1181,13 @@ function render() {
       if (!(gk in mnIdx)) { mnIdx[gk] = mnGroups.length; mnGroups.push({gk, rows: []}); }
       mnGroups[mnIdx[gk]].rows.push(it);
     });
+    const mnHasMore = mnGroups.some(g => g.rows.length > 1);
+    html += `<div class="sec-head sec-minouhin"><h2>製造完了・納品書未作成</h2><span class="count">${minouhin.length}件</span><button class="btn-add" style="background:#1a73e8" onclick="showNouhinModal()">📄 納品書</button></div>`;
+    html += `<div class="table-scroll"><table class="tbl-kanryo tbl-minouhin" id="tbl-minouhin"><thead><tr>`;
+    kanryoCols.forEach((c,i) => {
+      html += `<th draggable="true" data-col="${c}" data-idx="${i}" data-table="kanryo">${COL_LABELS[c]||c}</th>`;
+    });
+    html += `<th style="width:${parseInt(menuColW(minouhin)) + (mnHasMore ? 72 : 0)}px"></th><th></th></tr></thead><tbody>`;
     mnGroups.forEach(g => {
       const open = minouhinOpen.has(g.gk);
       g.rows.forEach((it, ri) => {
@@ -1198,9 +1199,9 @@ function render() {
           more = `<button class="btn-mnmore" onclick="toggleMinouhin(${mnIdx[g.gk]})" title="${escAttr(tip)}">${open ? '▴ たたむ' : '他' + (g.rows.length - 1) + '件 ▾'}</button>`;
         }
         const btns = ri === 0
-          ? `${more}<button class="btn-mknouhin" onclick="nouhinForRow('${k}')" title="この取引先（同じ配送）の納品書を、明細を呼び出した状態で開く">📄 納品書作成</button>`
+          ? `<button class="btn-mknouhin" onclick="nouhinForRow('${k}')" title="この取引先（同じ配送）の納品書を、明細を呼び出した状態で開く">📄 納品書作成</button>`
           : '';
-        const tr = buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${rowMenuBtnHtml(it, k)}</td><td style="white-space:nowrap">${btns}<button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
+        const tr = buildRow(it, 12, kanryoCols, {rmkDel:true}).replace('</tr>', `<td>${more ? rowMenuBtnHtml(it, k).replace('<div class="rm-cell">', '<div class="rm-cell">' + more) : rowMenuBtnHtml(it, k)}</td><td style="white-space:nowrap">${btns}<button class="btn-ship" onclick="onArchive('${k}')">出荷完了</button></td></tr>`);
         html += ri > 0 ? tr.replace(/^<tr/, '<tr data-mnsub="1"') : tr;
       });
     });
