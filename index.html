@@ -1305,9 +1305,12 @@ window.addEventListener('resize', applyStickyCust);
 
 // 日付が変わったら「明日」を「本日」へ繰り上げる（工場では開きっぱなしのため）
 // 編集中・カレンダー表示中は描き直すと入力が飛ぶので見送り、次の周期でやり直す
-let _dayStamp = new Date().toDateString();
+// 「残り○営業日」は時刻で半日ずつ減るので、その切り替わり（10時・14時）でも描き直す
+function _dayStampNow() { return new Date().toDateString() + '|' + todayBizShare(); }
+let _dayStamp = null;   // BIZ_SAT等の定義より前なので起動時は計算しない（初回の周期で記録）
 function watchDayChange() {
-  const now = new Date().toDateString();
+  const now = _dayStampNow();
+  if (_dayStamp === null) { _dayStamp = now; return; }
   if (now === _dayStamp) return;
   const ae = document.activeElement;
   if (duePop || openDropEl) return;
@@ -2010,6 +2013,28 @@ function dueOffsetDays(iso) {
   d.setHours(0,0,0,0);
   return Math.round((d - t) / 86400000);
 }
+// 表示用: 時刻も加味した残り営業日（半日きざみ）。本日の持ち分＝工場の稼働時間(8時〜16時閉業)の残り
+// 〜10時=1日／10〜14時=半日／14時以降・休日=0 → 朝は「残り3営業日」、昼は「残り2日半」、15時は「残り2営業日」
+const BIZ_START_H = 8, BIZ_END_H = 16;
+function todayBizShare() {
+  const now = new Date();
+  if (!isWorkDay(now)) return 0;
+  const h = now.getHours() + now.getMinutes() / 60;
+  const r = Math.max(0, Math.min(1, (BIZ_END_H - h) / (BIZ_END_H - BIZ_START_H)));
+  return Math.round(r * 2) / 2;
+}
+function dueBizLeft(iso) {
+  const n = dueOffsetDays(iso);
+  if (n === null || n < 1) return null;
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  let cnt = 0;
+  for (let i = 1; i < n; i++) { const d = new Date(t); d.setDate(d.getDate() + i); if (isWorkDay(d)) cnt++; }
+  return todayBizShare() + cnt + 1;
+}
+function fmtBizLeft(x) {
+  const w = Math.floor(x), half = (x - w) >= 0.5;
+  return half ? '残り' + w + '日半' : '残り' + w + '営業日';
+}
 // セル背景用: 複数日のうち一番近い日を採用。残り営業日 1=本日(赤) 2=翌営業日(黄) 3=翌々営業日(緑) それ以外は null
 function dueDayFlag(v) {
   let best = null;
@@ -2062,7 +2087,10 @@ function dueDispHtml(v) {
   // 休みを挟んで日付が遠く見える行に「残り2営業日」「残り3営業日」を添える
   const remain = dueDayFlag(v);
   if (remain !== null && remain >= 2 && !parts.some(p => p === '本日' || p === '明日')) {
-    html += '<div class="due-biz" title="本日を含めた残り営業日">残り' + remain + '営業日</div>';
+    let left = null;
+    arr.forEach(s => { const x = dueBizLeft(s); if (x !== null) left = (left === null) ? x : Math.min(left, x); });
+    if (left === null) left = remain;
+    html += '<div class="due-biz" title="今日の残り時間（8時〜16時閉業）も含めた残り営業日。半日きざみ">' + fmtBizLeft(left) + '</div>';
   }
   return html;
 }
