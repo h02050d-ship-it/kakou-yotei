@@ -438,6 +438,14 @@
   .stack-cell { flex-direction: column; line-height: 1.15; gap: 0; }
   .rc-sub { font-size: 10.5px; color: #e65100; font-weight: 800; white-space: nowrap; }
   .zaiko-on { background: #e0f7fa !important; }
+  /* 加在の一部だけ在庫(2026-11-12): 水色の斜線＝残りは加工が要る */
+  .zaiko-part { background: repeating-linear-gradient(45deg,#e0f7fa 0 6px,#fff 6px 12px) !important; }
+  .zk-wrap { display:flex; flex-direction:column; align-items:stretch; justify-content:center; height:100%; }
+  .zk-wrap .sel { height:auto; min-height:22px; display:flex; align-items:center; justify-content:center; }
+  .zk-wrap .sel:not(.zk-full):not(.zk-part) { border:1px solid #ccc; border-radius:4px; }
+  .zk-wrap .zk-full { background:#4caf50; color:#fff; border-radius:4px; }
+  .zk-wrap .zk-part { background:#c8e6c9; color:#1b5e20; border-radius:4px; }
+  .zk-at { font-size:9px; line-height:1.1; color:#2e7d32; font-weight:700; text-align:center; white-space:nowrap; margin-top:1px; }
   .ryoutan-on { background: #e57373 !important; }   /* 両切＝赤。塗装のピンクとはっきり分ける */
 
   /* 予定セル: 両切＝赤（両切セルと同じ#ffcdd2）／両切＋塗装＝左半分赤・右半分ピンク */
@@ -508,7 +516,7 @@
     .table-scroll table th[data-col="danball"]   { width: 34px !important; }
     .table-scroll table th[data-col="ryoutan"]   { width: 34px !important; }
     .table-scroll table th[data-col="tosou"]     { width: 34px !important; }
-    .table-scroll table th[data-col="zaiko"]     { width: 34px !important; }
+    .table-scroll table th[data-col="zaiko"]     { width: 42px !important; }
     .table-scroll table th[data-col="carrier"]   { width: 46px !important; }
     .table-scroll table th[data-col="due"]       { width: 62px !important; }
     .table-scroll table th[data-col="remark"]    { width: 230px !important; }
@@ -634,7 +642,7 @@ const db = firebase.database();
 
 const DEFAULT_COLS = ['ptime','stack','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual','seal','danball','ryoutan','tosou','zaiko','carrier','due','remark'];
 const COL_LABELS = {ptime:'加工時間',stack:'スタ段数','order':'製造順',customer:'取引先',hinmei:'品名',grade:'等級',thickness:'厚',width:'幅',length:'長',qty:'入数',planned:'予定',actual:'実際',seal:'シル',danball:'段ボ',ryoutan:'両切',tosou:'塗装',zaiko:'加在',carrier:'配送',due:'出荷日',remark:'備考'};
-const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'2.2%',carrier:'3.5%',due:'5%'};   // 備考(remark)は幅指定なし＝残り幅を全部もらう（2026-09-28 ⋯列は最小px）
+const COL_WIDTHS = {ptime:'3.5%',stack:'3.5%',order:'3%',customer:'6.5%',hinmei:'2.5%',grade:'6%',thickness:'3%',width:'3%',length:'4%',qty:'3.5%',planned:'4.5%',actual:'4.5%',seal:'2.2%',danball:'2.2%',ryoutan:'2.2%',tosou:'2.2%',zaiko:'3%',carrier:'3.5%',due:'5%'};   // 備考(remark)は幅指定なし＝残り幅を全部もらう（2026-09-28 ⋯列は最小px）
 
 let allItems = [];
 let colOrder = DEFAULT_COLS.slice();
@@ -710,7 +718,7 @@ function saveItem(it) {
   if (it.customer) it.customer = normCustomerName(it.customer);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
-   'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','nouhin_biko','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','zaiko_qty','zaiko_at','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','nouhin_biko','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
     data[f] = (it[f] !== undefined && it[f] !== '') ? it[f] : null;   // 空は削除(null)
   });
   // set(丸ごと)ではなく update(既知の項目だけ)にする。古いキャッシュ版ページ(SWRで更新直後は旧版が1回出る)が
@@ -980,6 +988,67 @@ document.addEventListener('scroll', (e) => {
   closeCDrop();
 }, true);
 window.addEventListener('resize', () => closeCDrop());
+// ===== 加在（加工済み在庫）＝数量で入れる（2026-11-12 本人指示） =====
+// zaiko='1'＝全量在庫（従来の「有」と同じ意味・他の仕組みはこれを見る）／zaiko_qty＝一部だけ在庫の束数／zaiko_at＝入れた日時(ms)
+// プルダウン: 先頭=予定と同じ数(全量)、次は1から（一部が入っていればその数から）予定-1まで、最後に「なし」
+function zaikoPartQty(it) {
+  if (getVal(it,'zaiko') === '1') return 0;
+  const q = parseInt(getVal(it,'zaiko_qty'), 10);
+  return isNaN(q) || q <= 0 ? 0 : q;
+}
+function zaikoAtLabel(ms) {
+  const t = Number(ms); if (!t) return '';
+  const d = new Date(t);
+  return `${d.getMonth()+1}/${d.getDate()}<br>${d.getHours()}時点`;
+}
+function zaikoCell(it, k) {
+  const planned = parseInt(getVal(it,'planned'), 10) || 0;
+  const full = getVal(it,'zaiko') === '1';
+  const pq = zaikoPartQty(it);
+  const opts = [];
+  if (planned > 0) {
+    opts.push(String(planned));
+    for (let n = Math.max(1, pq); n < planned; n++) opts.push(String(n));
+  } else {
+    opts.push('有');
+  }
+  opts.push('なし');
+  cdropData[k + ' zaiko_sel'] = { opts, colorMap: null };
+  let disp = '', cls = '', sub = '';
+  if (full) { disp = planned > 0 ? String(planned) : '有'; cls = ' zk-full'; }
+  else if (pq > 0) {
+    disp = String(pq); cls = ' zk-part';
+    const at = zaikoAtLabel(getVal(it,'zaiko_at'));
+    sub = `<div class="zk-at" title="予定${planned || '?'}束のうち${pq}束が在庫（${at.replace('<br>',' ')}）">${at}</div>`;
+  }
+  const tip = full ? '全量在庫' : (pq > 0 ? '一部在庫' : '加工済み在庫の束数を選ぶ');
+  return `<div class="zk-wrap"><div class="sel cdrop${cls}" tabindex="0" data-key="${k}" data-field="zaiko_sel" title="${tip}" onclick="openCDrop(this,event)">${disp}</div>${sub}</div>`;
+}
+function onZaikoPick(key, val) {
+  const it = allItems.find(i => itemKey(i) === key);
+  if (!it) return;
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); render(); return; }
+  const planned = parseInt(getVal(it,'planned'), 10) || 0;
+  let v = val;
+  if (v === '__other__') {
+    const r = prompt('加工済み在庫の束数を入力してください（予定' + (planned || '?') + '束）');
+    if (r === null || !r.trim()) { render(); return; }
+    v = r.trim().replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  }
+  let zaiko = '', qty = '';
+  if (v === 'なし' || v === '0') { zaiko = ''; qty = ''; }
+  else if (v === '有') { zaiko = '1'; }
+  else {
+    const n = parseInt(v, 10);
+    if (isNaN(n) || n <= 0) { alert('数字で入力してください'); render(); return; }
+    if (planned > 0 && n >= planned) zaiko = '1';      // 予定と同じ(以上)＝全量
+    else qty = String(n);
+  }
+  if (!editGuard(key, 'zaiko', zaiko || qty)) { render(); return; }
+  it.zaiko = zaiko; it.zaiko_qty = qty;
+  it.zaiko_at = (zaiko || qty) ? Date.now() : '';
+  saveItem(it);
+}
 function cellRenderers(it, sz) {
   const e=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   const k=itemKey(it), ea=(f)=>`contenteditable="true" data-key="${k}" data-field="${f}" onblur="onCellEdit(this)"`;
@@ -1044,7 +1113,7 @@ function cellRenderers(it, sz) {
     danball: `<div class="mark-toggle mt-danball ${getVal(it,'danball')==='有'?'on':''}" data-key="${k}" data-field="danball" onclick="onSealToggle(this)">${getVal(it,'danball')==='有'?'段':''}</div>`,
     ryoutan: `<div class="mark-toggle mt-kiri ${getVal(it,'ryoutan')==='1'?'on':''}" data-key="${k}" data-field="ryoutan" onclick="onMarkToggle(this)">${getVal(it,'ryoutan')==='1'?'切':''}</div>`,
     tosou: `<div class="mark-toggle mt-tosou ${getVal(it,'tosou')==='1'?'on':''}" data-key="${k}" data-field="tosou" onclick="onMarkToggle(this)">${getVal(it,'tosou')==='1'?'塗':''}</div>`,
-    zaiko: `<div class="mark-toggle mt-zaiko ${getVal(it,'zaiko')==='1'?'on':''}" data-key="${k}" data-field="zaiko" onclick="onMarkToggle(this)">${getVal(it,'zaiko')==='1'?'有':''}</div>`,
+    zaiko: zaikoCell(it, k),
     carrier: genSel(it,'carrier',['-','内藤','西濃','佐川','自社','引取','郵便'],sz,'',carrierColors),
     due: `<div class="due-wrap" data-key="${k}" onclick="openDuePicker(this,event)">${dueDispHtml(getVal(it,'due'))}${dueKbnDispHtml(it)}${chakuDispHtml(it)}</div>`,
     remark: `<td class="rmk" ${ea('remark')}>${e(getVal(it,'remark'))||''}</td>`
@@ -1061,12 +1130,14 @@ function buildRow(it, sz, cols, opts) {
       `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></button></td>`);
   }
   const isZaiko = getVal(it,'zaiko') === '1';
+  const isZaikoPart = !isZaiko && zaikoPartQty(it) > 0;
   const isRyoutan = getVal(it,'ryoutan') === '1';
   const isTosou = getVal(it,'tosou') === '1';
   const wrap = (col) => {
     if (col === 'customer' || col === 'remark') return r[col];
     const classes = [];
     if (isZaiko && col === 'actual') classes.push('zaiko-on');
+    if (isZaikoPart && col === 'actual') classes.push('zaiko-part');
     if (isRyoutan && col === 'length') classes.push('ryoutan-on');
     // 予定セル: 両切=赤／塗装=ピンク／両方=左半分赤・右半分ピンク／どちらも無ければ加在の水色
     if (col === 'planned') {
@@ -1074,6 +1145,7 @@ function buildRow(it, sz, cols, opts) {
       else if (isRyoutan) classes.push('plan-kiri');
       else if (isTosou) classes.push('tosou-on');
       else if (isZaiko) classes.push('zaiko-on');
+      else if (isZaikoPart) classes.push('zaiko-part');
     }
     if (col === 'grade' && String(getVal(it,'grade')).includes('B')) classes.push('grade-b');
     if (col === 'width' && getVal(it,'width') && String(getVal(it,'width')) !== '120') classes.push('width-alert');
@@ -1272,7 +1344,7 @@ function render() {
         <td>${getVal(it,'danball')==='有'?'有':''}</td>
         <td>${getVal(it,'ryoutan')==='1'?'有':''}</td>
         <td>${getVal(it,'tosou')==='1'?'有':''}</td>
-        <td>${getVal(it,'zaiko')==='1'?'有':''}</td>
+        <td>${getVal(it,'zaiko')==='1'?'有':(zaikoPartQty(it)>0?zaikoPartQty(it):'')}</td>
         <td>${e2(getVal(it,'carrier'))||''}</td>
         <td><input type="date" class="arch-date" value="${isoFromTs(it.archived_at || it.completed_at)}" onchange="onArchDate('${k}',this.value)"></td>
         <td>${e2(getVal(it,'remark'))||''}</td>
@@ -1366,7 +1438,7 @@ function calcProcTime() {
     if (!len || !qty || !planned) return;
     // 実際に数字が入っていれば、その分はもう加工済みとして残り束数で計算
     const actualNum = parseInt(getVal(it, 'actual'));
-    const bundles = !isNaN(actualNum) ? Math.max(0, planned - actualNum) : planned;
+    const bundles = Math.max(0, (!isNaN(actualNum) ? planned - actualNum : planned) - zaikoPartQty(it));   // 加在の一部在庫分は加工不要
     if (bundles <= 0) return;
     const t = 4 * (len / 4000) * (qty / 8) * bundles * 1.1;
     const thick = String(getVal(it, 'thickness'));
@@ -2198,6 +2270,7 @@ function autoZaikoForB(key, field, val) {
 }
 function onGenSelChange(el) {
   const key = el.dataset.key, field = el.dataset.field;
+  if (field === 'zaiko_sel') { onZaikoPick(key, el.value); return; }
   if (el.value === '__other__') {
     const v = prompt('値を入力してください');
     if (v !== null && v.trim()) {
@@ -2655,7 +2728,7 @@ function rowMenuCopy() {
   const uid = 'add_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
   const copy = { _uid: uid };
   ['order','customer','hinmei','grade','thickness','width','length','qty','planned',
-   'seal','danball','ryoutan','tosou','zaiko','carrier','due','remark','important_note','nouki_renraku'].forEach(f => {
+   'seal','danball','ryoutan','tosou','zaiko','zaiko_qty','zaiko_at','carrier','due','remark','important_note','nouki_renraku'].forEach(f => {
     if (it[f] !== undefined && it[f] !== '') copy[f] = it[f];
   });
   copy.actual = '-';   // コピーは未加工扱いに（実際はリセット）
