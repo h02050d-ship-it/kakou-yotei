@@ -3730,6 +3730,18 @@ function shkCustNote(c){
 // 個別案件の注記（2026-11-12 本人指示「ナイス長野みたいに個別の案件はその旨もLINEに」）。
 // 備考に「個別」を含む品目があれば、その部分（例「長野市場個別」）を拾って「※個別案件（長野市場個別）」。
 // サーバー hayazai_website/shukka/lib.php の shkKobetsuNote と同じ規則（10分後自動送信もこちらと同じ文面になる）。
+// 着日の条件（2026-11-12 本人指摘）。①着日指定(chaku/chaku_kbn) ②備考の日付つき条件（例「11/24以降の納品希望」）を行末に。サーバー lib.php shkChakuNote と同じ規則
+function shkChakuNote(it){
+  const out=[];
+  const m=String(it.chaku||'').trim().match(/^\d{4}-(\d{2})-(\d{2})$/);
+  if(m){ const kb=String(it.chaku_kbn||'').trim(); out.push((+m[1])+'/'+(+m[2])+'着指定'+(kb&&kb!=='-'?'（'+kb+'）':'')); }
+  String(it.remark||'').split(/[、。,，・（）()\[\]【】\s　]+/).map(s=>s.trim()).forEach(seg=>{
+    if(!seg||!/\d{1,2}\/\d{1,2}/.test(seg)||!/以降|以前|まで|迄|着|納品|希望|指定/.test(seg)) return;
+    if(out.length&&seg.includes('着指定')&&out[0].includes('着指定')) return;
+    if(!out.includes(seg)) out.push(seg);
+  });
+  return out.join('・');
+}
 function shkKobetsuNote(arr){
   const seen=[];
   (arr||[]).forEach(it=>{
@@ -3811,7 +3823,8 @@ function renderShukkaText(){
     const lines=g[c].map(it=>{
       const dn=shkDone(it); dn?done++:und++;
       const bun=shkBun(it);
-      return `${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
+      const ck=shkChakuNote(it);
+      return `${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`+(ck?' ※'+ck:'');
     });
     const kb=shkKobetsuNote(g[c]); if(kb) lines.push(kb); // 個別案件（ナイス長野 等・備考の「個別」）
     const note=shkCustNote(c); if(note) lines.push(note); // 取引先ごとの固定注記（ニッチ=8/1以降着希望 等）
