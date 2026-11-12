@@ -1018,7 +1018,7 @@ function cellRenderers(it, sz) {
     order: (()=>{
       // 自動入力の未確認行(EC＋2026-11-12〜市場のFAX・メール注文)＝番号の代わりに「確認」ボタン（押すと製造順4＆確認済み）。order-deskのエディタ経由はhumanchk=1で対象外
       if (String(k).startsWith('od_') && getVal(it,'humanchk') !== '1') {
-        return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）。原本は ⋯ の📎発注ソースで見られます">確認</span>`;
+        return `<span class="ord-chk" data-key="${k}" onclick="onOrderConfirm(this)" title="自動入力の内容を確認したら押す（製造順4になります）。FAX注文は全行確認すると数分でFAXデスクも対応済になります。原本は ⋯ の📎発注ソースで見られます">確認</span>`;
       }
       // 配送確認/注文確定/支払確認中＝加工NG。バッジは通常色・行の他の文字を薄くする（isNgRow）
       if (isNgRow(it)) {
