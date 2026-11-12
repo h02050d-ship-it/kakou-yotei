@@ -3820,12 +3820,17 @@ function renderShukkaText(){
   const custs=Object.keys(g).sort((a,b)=>a.localeCompare(b,'ja'));
   let done=0,und=0; const blocks=[];
   custs.forEach(c=>{
-    const lines=g[c].map(it=>{
+    // 着日条件が取引先の全品目で同じならブロック末尾に1回だけ（サーバー shkBuildMsg と同じ）
+    // 全品目に共通の部分はブロック末尾に1回、違う部分だけ行末に残す
+    const parts=g[c].map(it=>{ const s=shkChakuNote(it); return s?s.split('・'):[]; });
+    const common=g[c].length>1?[...new Set(parts[0].filter(p=>parts.every(ps=>ps.includes(p))))]:[];
+    const lines=g[c].map((it,i)=>{
       const dn=shkDone(it); dn?done++:und++;
       const bun=shkBun(it);
-      const ck=shkChakuNote(it);
+      const ck=parts[i].filter(p=>!common.includes(p)).join('・');
       return `${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`+(ck?' ※'+ck:'');
     });
+    if(common.length) lines.push('※'+common.join('・'));
     const kb=shkKobetsuNote(g[c]); if(kb) lines.push(kb); // 個別案件（ナイス長野 等・備考の「個別」）
     const note=shkCustNote(c); if(note) lines.push(note); // 取引先ごとの固定注記（ニッチ=8/1以降着希望 等）
     blocks.push('■ '+c+'\n'+lines.join('\n'));
