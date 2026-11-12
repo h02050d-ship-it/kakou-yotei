@@ -3727,6 +3727,19 @@ function shkCustNote(c){
   // （ニッチ「※8月1日以降着希望」は期日到来のため2026-08-03に削除）
   return '';
 }
+// 個別案件の注記（2026-11-12 本人指示「ナイス長野みたいに個別の案件はその旨もLINEに」）。
+// 備考に「個別」を含む品目があれば、その部分（例「長野市場個別」）を拾って「※個別案件（長野市場個別）」。
+// サーバー hayazai_website/shukka/lib.php の shkKobetsuNote と同じ規則（10分後自動送信もこちらと同じ文面になる）。
+function shkKobetsuNote(arr){
+  const seen=[];
+  (arr||[]).forEach(it=>{
+    const r=String(it.remark||''); if(!r.includes('個別')) return;
+    r.split(/[、。,，・\/（）()\[\]【】\s　]+/).map(s=>s.trim()).filter(s=>s&&s.includes('個別')).forEach(s=>{ if(!seen.includes(s)) seen.push(s); });
+  });
+  if(!seen.length) return '';
+  const parts=seen.filter(p=>p!=='個別'&&p!=='個別案件');
+  return '※個別案件'+(parts.length?'（'+parts.join('・')+'）':'');
+}
 // 自社配送が多い取引先：出荷依頼モーダルでデフォルト・チェックOFF（表示はする）。
 // 表記ゆれに備え空白・括弧を除去して部分一致で判定。名称が違えば下の配列を直す。
 function shkDefaultOff(c){
@@ -3800,6 +3813,7 @@ function renderShukkaText(){
       const bun=shkBun(it);
       return `${shkLenM(it.length)} ${bun!=null?bun+'束':'?束'}（${shkStatusLabel(it)}）`;
     });
+    const kb=shkKobetsuNote(g[c]); if(kb) lines.push(kb); // 個別案件（ナイス長野 等・備考の「個別」）
     const note=shkCustNote(c); if(note) lines.push(note); // 取引先ごとの固定注記（ニッチ=8/1以降着希望 等）
     blocks.push('■ '+c+'\n'+lines.join('\n'));
   });
