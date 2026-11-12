@@ -695,12 +695,19 @@ function itemKey(it) {
   return it._uid;
 }
 function getVal(it, field) { return it[field] || ''; }
+// 取引先名の表記ゆれをそろえる（2026-11-12 本人指示「ひかりは ひらがなで登録」）
+function normCustomerName(c) {
+  const s = String(c || '');
+  if (/^\s*(ヒカリ|ﾋｶﾘ|hikari|ＨＩＫＡＲＩ|(（株）|\(株\)|株式会社)?\s*HIKARI)\s*$/i.test(s)) return 'ひかり';
+  return s;
+}
 
 // Save single item to Firebase
 function saveItem(it) {
   // キャッシュ表示中（サーバー未受信）の保存は、古いデータで上書きしてしまうため受け付けない
   if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); return; }
   const k = itemKey(it);
+  if (it.customer) it.customer = normCustomerName(it.customer);
   const data = {};
   ['_uid','order','customer','hinmei','grade','thickness','width','length','qty','planned','actual',
    'seal','danball','ryoutan','tosou','zaiko','humanchk','carrier','due','stock_minus','ord_base','ec_logged','dblcheck','kessoku_jun','remark','important_note','nouhin_biko','tokka','soryo','archived','archived_at','completed_at','shk_sent','ship_ok','setup_done','nouhin_pre','nouhin_pre_at','manual','chaku','chaku_kbn','due_kbn','due_mail','due_mail_at','nouki_renraku'].forEach(f => {
