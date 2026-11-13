@@ -991,7 +991,7 @@ document.addEventListener('scroll', (e) => {
 window.addEventListener('resize', () => closeCDrop());
 // ===== 加在（加工済み在庫）＝数量で入れる（2026-11-12 本人指示） =====
 // zaiko='1'＝全量在庫（従来の「有」と同じ意味・他の仕組みはこれを見る）／zaiko_qty＝一部だけ在庫の束数／zaiko_at＝入れた日時(ms)
-// プルダウン: 先頭=予定と同じ数(全量)、次は1から（一部が入っていればその数から）予定-1まで、最後に「なし」
+// プルダウン: 先頭=「有」(予定と同じ数＝全量)、次は1から（一部が入っていればその数から）予定-1まで、最後に「なし」
 function zaikoPartQty(it) {
   if (getVal(it,'zaiko') === '1') return 0;
   const q = parseInt(getVal(it,'zaiko_qty'), 10);
@@ -1007,16 +1007,15 @@ function zaikoCell(it, k) {
   const full = getVal(it,'zaiko') === '1';
   const pq = zaikoPartQty(it);
   const opts = [];
+  // 予定と同じ数(全量)は数字でなく「有」と表示（2026-11-13 本人指示）
+  opts.push('有');
   if (planned > 0) {
-    opts.push(String(planned));
     for (let n = Math.max(1, pq); n < planned; n++) opts.push(String(n));
-  } else {
-    opts.push('有');
   }
   opts.push('なし');
   cdropData[k + ' zaiko_sel'] = { opts, colorMap: null };
   let disp = '', cls = '', sub = '';
-  if (full) { disp = planned > 0 ? String(planned) : '有'; cls = ' zk-full'; }
+  if (full) { disp = '有'; cls = ' zk-full'; }
   else if (pq > 0) {
     disp = String(pq); cls = ' zk-part';
     const at = zaikoAtLabel(getVal(it,'zaiko_at'));
