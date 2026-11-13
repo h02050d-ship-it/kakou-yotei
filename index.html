@@ -444,9 +444,10 @@
   .zk-wrap { display:flex; flex-direction:column; align-items:stretch; justify-content:center; height:100%; }
   .zk-wrap .sel { height:auto; min-height:22px; display:flex; align-items:center; justify-content:center; }
   .zk-wrap .sel:not(.zk-full):not(.zk-part) { border:1px solid #ccc; border-radius:4px; }
-  .zk-wrap .zk-full { background:#4caf50; color:#fff; border-radius:4px; }
-  .zk-wrap .zk-part { background:#c8e6c9; color:#1b5e20; border-radius:4px; }
-  .zk-at { font-size:9px; line-height:1.1; color:#2e7d32; font-weight:700; text-align:center; white-space:nowrap; margin-top:1px; }
+  /* 加在の色は予定・実際セルの水色(.zaiko-on/.zaiko-part)と統一（2026-11-13 本人指示） */
+  .zk-wrap .zk-full { background:#e0f7fa; color:#006064; border:1px solid #4dd0e1; border-radius:4px; }
+  .zk-wrap .zk-part { background:repeating-linear-gradient(45deg,#e0f7fa 0 6px,#fff 6px 12px); color:#006064; border:1px solid #4dd0e1; border-radius:4px; }
+  .zk-at { font-size:9px; line-height:1.1; color:#00838f; font-weight:700; text-align:center; white-space:nowrap; margin-top:1px; }
   .ryoutan-on { background: #e57373 !important; }   /* 両切＝赤。塗装のピンクとはっきり分ける */
 
   /* 予定セル: 両切＝赤（両切セルと同じ#ffcdd2）／両切＋塗装＝左半分赤・右半分ピンク */
