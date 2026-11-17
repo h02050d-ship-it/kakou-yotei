@@ -3120,6 +3120,22 @@ function sealMasterFor(cust) {
   return best;
 }
 // 同じ取引先の過去の行（出荷完了ぶんも含む＝これが「過去の事例」）
+// 2026-11-17 本人「10束以下はシールなし（ほかの組み合わせ注文がなければ）」
+// 同じ注文＝同じ取引先・未アーカイブで、自動取込(od_<注文ID>_n)は同じ注文ID、手入力(add_<時刻>)は前後10分以内に登録された行
+function orderTabaTotal(it) {
+  const c = normJ(getVal(it, 'customer')); if (!c) return 0;
+  const uid = String(it._uid || '');
+  const od = uid.match(/^(od_.+)_\d+$/), ad = uid.match(/^add_(\d{12,14})_/);
+  const same = allItems.filter(o => {
+    if (o !== it && (normJ(o.customer) !== c || String(o.archived || '') === '1')) return false;
+    if (o === it) return true;
+    const u = String(o._uid || '');
+    if (od) { const m = u.match(/^(od_.+)_\d+$/); return !!m && m[1] === od[1]; }
+    if (ad) { const m = u.match(/^add_(\d{12,14})_/); return !!m && Math.abs(Number(m[1]) - Number(ad[1])) <= 10 * 60 * 1000; }
+    return false;
+  });
+  return same.reduce((s, o) => s + (parseInt(o.planned, 10) || 0), 0);
+}
 function setupHist(it) {
   const c = normJ(getVal(it, 'customer'));
   if (!c) return [];
@@ -3210,6 +3226,10 @@ function guessMark(it, field, carrier) {
   if (L) return { val: L.val, why: learnWhy(L, field), learn: L.key };
   if (field === 'seal' && isSeino(carrier === undefined ? getVal(it, 'carrier') : carrier)) {
     return { val: '無', why: '西濃はシールなし' };
+  }
+  if (field === 'seal') {
+    const t = orderTabaTotal(it);
+    if (t > 0 && t <= 10) return { val: '無', why: '10束以下はシールなし（同じ注文の合計' + t + '束）' };
   }
   if (String(getVal(it, field)) === '有') return { val: '有', why: 'すでに「有」が入っています' };
   const m = sealMasterFor(getVal(it, 'customer'));
