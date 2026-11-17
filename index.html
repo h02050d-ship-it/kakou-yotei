@@ -889,6 +889,7 @@ function loadData() {
       // 市場×西濃で送料が未設定なら備考に「送料設定してください」（設定・配送変更で自動で消える）
       if (applySoryoNote(it)) dirty = true;
       if (applySampleNote(it)) dirty = true;
+      if (applySampleRules(it)) dirty = true;
       if (dirty && autoFixAllowed(itemKey(it))) saveAutoFix(it, orig);
     });
 
@@ -1990,6 +1991,37 @@ function applySampleNote(it) {
     : cur.split(/\s+/).filter(w => w !== SAMPLE_NOTE).join(' ').trim();
   return true;
 }
+// 🔴2026-11-17 本人指示（ナイス小牧）: カットサンプル×西濃＝段ボール「有」。
+// 14時までに来たサンプル依頼は「本日出荷・製造順3」。各1回だけ自動で入れる（人が後で直した値は戻さない）
+const SAMPLE_SAME_DAY_HOUR = 14;
+function rowCreatedMs(it) {
+  const a = Number(it.auto_at); if (a > 1e12) return a;
+  const m = String(itemKey(it)).match(/(?:^|_)(1[7-9]\d{11})(?:_|$)/);
+  return m ? Number(m[1]) : 0;
+}
+function applySampleRules(it) {
+  if (!it || it.archived === '1' || !isCutSample(it) || String(it.order) === '9') return false;   // 完了行は触らない
+  let ch = false;
+  if (isSeino(it.carrier) && it.sample_dan !== '1') {
+    it.sample_dan = '1';
+    if (String(it.danball || '') !== '有') it.danball = '有';
+    ch = true;
+  }
+  if (it.sample_due !== '1') {
+    const c = rowCreatedMs(it), now = new Date();
+    const d = c ? new Date(c) : null;
+    if (d && d.toDateString() === now.toDateString()) {   // 今日登録された行だけ（過去の行には遡らない）
+      it.sample_due = '1'; ch = true;
+      if (d.getHours() < SAMPLE_SAME_DAY_HOUR) {
+        const iso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        if (!String(it.due || '').trim()) it.due = iso;
+        const o = String(it.order || '');
+        if (!o || o === '4') it.order = '3';
+      }
+    }
+  }
+  return ch;
+}
 function applySoryoNote(it) {
   if (!it || it.archived === '1') return false;
   const cur = String(it.remark || '');
@@ -2421,7 +2453,10 @@ function onHmChange(el) {
 function onOrderConfirm(el) {
   const key = el.dataset.key;
   saveField(key, 'humanchk', '1');
-  saveField(key, 'order', '4');
+  const it = allItems.find(i => itemKey(i) === key);
+  // 14時までのサンプル依頼で自動で製造順3にした行は、確認しても3のまま
+  const keep3 = it && isCutSample(it) && it.sample_due === '1' && String(it.order) === '3';
+  saveField(key, 'order', keep3 ? '3' : '4');
 }
 function onZaikoChange(el) {
   if (!editGuard(el.dataset.key, el.dataset.field, el.checked?'1':'')) { render(); return; }
@@ -3230,6 +3265,9 @@ function guessMark(it, field, carrier) {
   if (field === 'seal') {
     const t = orderTabaTotal(it);
     if (t > 0 && t <= 10) return { val: '無', why: '10束以下はシールなし（同じ注文の合計' + t + '束）' };
+  }
+  if (field === 'danball' && isCutSample(it) && isSeino(carrier === undefined ? getVal(it, 'carrier') : carrier)) {
+    return { val: '有', why: 'サンプルの西濃は段ボールあり' };
   }
   if (String(getVal(it, field)) === '有') return { val: '有', why: 'すでに「有」が入っています' };
   const m = sealMasterFor(getVal(it, 'customer'));
