@@ -3884,6 +3884,7 @@ function shkChakuNote(it){
   return out.join('・');
 }
 function shkKobetsuNote(arr){
+  return ''; // 2026-11-18 本人「内藤だけど個別案件っての削除で」→ 内藤運輸LINEに個別案件の注記を出さない
   const seen=[];
   (arr||[]).forEach(it=>{
     const r=String(it.remark||''); if(!r.includes('個別')) return;
