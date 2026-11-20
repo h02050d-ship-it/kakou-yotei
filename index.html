@@ -3621,7 +3621,7 @@ function openSealChk(key) {
   const row = [getVal(it, 'customer'), sealHinmei(getVal(it, 'hinmei')), getVal(it, 'grade'),
     [getVal(it, 'thickness'), getVal(it, 'width'), getVal(it, 'length')].filter(Boolean).join('×'),
     getVal(it, 'qty') ? '入' + getVal(it, 'qty') : '', (getVal(it, 'planned') || '') + '束'].filter(Boolean).join(' ');
-  const tr = (h, v, hi) => v ? `<tr><th style="text-align:left;padding:4px 8px;color:#666;white-space:nowrap;vertical-align:top;font-weight:400">${h}</th><td style="padding:4px 8px${hi ? ';font-weight:700;font-size:15px' : ''}">${esc(v)}</td></tr>` : '';
+  const tr = (h, v, hi) => v ? `<tr><th style="text-align:left;padding:4px 8px;color:#666;white-space:nowrap;vertical-align:top;font-weight:400;width:1%">${h}</th><td style="padding:4px 8px${hi ? ';font-weight:700;font-size:15px' : ''}">${esc(v)}</td></tr>` : '';
   const err = String(it.seino_auto || '') === '1' && it.seino_auto_err;
   const done = String(it.seino_chk || '') === '1';
   const no = info.no || String(it.seino_auto_no || '').split(',')[0];
