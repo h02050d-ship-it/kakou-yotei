@@ -3950,7 +3950,9 @@ function dismissShkAlert(){
   if(!confirm('次の '+keys.length+' 件の出荷通知を「不要（処理済み）」にします。内藤運輸へは送りません。\n\n'+lines.join('\n'))) return;
   shkMarkKeys(keys,'✅ 帯から不要にした（送信なし）\n'+lines.join('\n'),true);
 }
-function shkCand(it){ if(it.archived==='1') return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; if((it.carrier||'')==='西濃') return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true;
+// 完了から3日以上たった内藤以外の品目（自社便などで予定表に残ったままの古い行）は出荷依頼の候補に出さない（2026-11-20 本人「だいぶ前の残ってるけどオフに」）
+function shkStaleNonNaito(it){ if(shkIsNaito(it)||!shkDone(it)) return false; const t=+it.completed_at||0; return !t || (Date.now()-t)>3*86400000; }
+function shkCand(it){ if(it.archived==='1') return false; if(shkStaleNonNaito(it)) return false; const l=String(it.length||'').trim(); if(!l||l==='-') return false; if(shkSkip(it.customer)) return false; if(/西濃/.test(it.remark||'')) return false; if((it.carrier||'')==='西濃') return false; const ln=parseInt(String(it.length).replace(/[^0-9]/g,''),10); if(![2000,3000,4000].includes(ln)) return false; return true;
 }
 // 取引先ごとにグループ化。各群内は完了→未完了、長さ昇順。
 function shkGroups(items){
