@@ -3565,7 +3565,7 @@ function openSeinoDesk(key) {
   const p = {
     from: 'kakou', uid: k, cust: cust, name: fullName(cust) || cust,
     kosu: String(getVal(it, 'planned') || ''), len: String(getVal(it, 'length') || ''), grade: String(getVal(it, 'grade') || ''),
-    qty: String(getVal(it, 'qty') || ''), hinmei: String(getVal(it, 'hinmei') || ''), thick: String(getVal(it, 'thickness') || ''),
+    qty: String(getVal(it, 'qty') || ''), hinmei: String(getVal(it, 'hinmei') || ''), thick: String(getVal(it, 'thickness') || ''), width: String(getVal(it, 'width') || ''),
     date: String(getVal(it, 'due') || '').split(',')[0] || '', chaku: String(getVal(it, 'chaku') || ''),
     kbn: SEINO_KBN_CODE[String(getVal(it, 'chaku_kbn') || '')] || '', od: k.startsWith('od_') ? '1' : '',
     note: String(getVal(it, 'important_note') || '').slice(0, 200)
