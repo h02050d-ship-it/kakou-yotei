@@ -293,6 +293,10 @@
   .rm-tag.t-biko { color: #00695c; background: #e0f2f1; }
   .rm-tag.t-hno { color: #c62828; background: #ffebee; border-style: dashed; }
   .rm-tag.t-juchu { color: #bf0000; background: #fff; }   /* 楽天の受注日 */
+  .rm-tag.t-sauto { color: #e65100; background: #fff3e0; }   /* 西濃シール 出荷日に自動印刷の予約 */
+  .rm-tag.t-saerr { color: #fff; background: #c62828; border-color: #c62828; cursor: pointer; }
+  .rm-tag.t-schk { color: #fff; background: #e65100; border-color: #e65100; cursor: pointer; }   /* 西濃シール確認（未） */
+  .rm-tag.t-schkok { color: #2e7d32; background: #e8f5e9; cursor: pointer; }
   .rowmenu-pop button.rm-biko { color: #00695c; }
   .rowmenu-pop button.rm-biko:hover { background: #e0f2f1; }
   .rm-tag[data-tip] { cursor: help; }
@@ -2571,6 +2575,9 @@ function rowMenuTags(it) {
   if (shkPending(it)) t.push(['shk', '出荷']);
   else if (it.shk_sent && it.archived !== '1') t.push(['shkok', '🚚依頼済']);   // 内藤運輸へ出荷依頼(通知)済み（2026-10-26 本人指示）
   if (srcUnknown(it)) t.push(['src', 'ソース?']);
+  { const sa = String(it.seino_auto || '');   // 西濃シール自動印刷（2026-11-20）
+    if (sa === '1') t.push(it.seino_auto_err ? ['saerr', '🖨停止'] : ['sauto', '🖨予約']);
+    else if (sa === 'done') t.push(String(it.seino_chk || '') === '1' ? ['schkok', '✅シール'] : ['schk', '🔍シール確認']); }
   const jd = rakutenJuchuDate(it);   // 楽天は受注日を一番右に（2026-11-11 本人指示）
   if (jd) t.push(['juchu', '受' + (jd.getMonth() + 1) + '/' + jd.getDate()]);
   return t;
@@ -2616,9 +2623,13 @@ function rowMenuBtnHtml(it, k) {
   if (hasTokka) TAG_TIP.tokka = '特価 ' + yen(getVal(it, 'tokka')) + '（今回のみの単価）';
   if (hasSoryo) TAG_TIP.soryo = soryoIsNone(getVal(it, 'soryo')) ? '送料なし（0円で設定済み・納品書に運賃は入りません）' : '送料 ' + yen(getVal(it, 'soryo')) + '（税抜）';
   if (getVal(it, 'chaku')) TAG_TIP.chaku = '着日指定 ' + fmtDue(getVal(it, 'chaku')) + (getVal(it, 'chaku_kbn') ? ' ' + getVal(it, 'chaku_kbn') : '');
+  TAG_TIP.sauto = '西濃シール: 出荷日になったら自動で本登録＋印刷します（送り状デスクの仮登録の内容）';
+  TAG_TIP.saerr = '西濃シールを自動で印刷できませんでした\n' + String(it.seino_auto_err || '') + '\nクリックで詳細';
+  TAG_TIP.schk = '西濃シールを印刷しました（No.' + String(it.seino_auto_no || '') + '）\nクリック→原本と見比べて「確認しました」';
+  TAG_TIP.schkok = '西濃シール 確認済み（No.' + String(it.seino_auto_no || '') + '）';
   const tipAttr = t => String(t).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])).replace(/\r?\n/g, '&#10;');
   const tl = rowMenuTags(it);
-  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}"${c === 'src' ? ` data-key="${k}" onclick="srcTagClick(this,event)"` : ''} data-tip="${tipAttr(TAG_TIP[c])}">${l}</span>`).join('') + '</span>' : '';
+  const tags = tl.length ? '<span class="rm-tags">' + tl.map(([c, l]) => `<span class="rm-tag t-${c}"${c === 'src' ? ` data-key="${k}" onclick="srcTagClick(this,event)"` : (/^(saerr|schk|schkok)$/.test(c) ? ` onclick="event.stopPropagation();openSealChk('${k}')"` : '')} data-tip="${tipAttr(TAG_TIP[c])}">${l}</span>`).join('') + '</span>' : '';
   return `<div class="rm-cell">${tags}<button class="btn-rowmenu${cls}" onclick="openRowMenu(this,'${k}',event)" title="${title}" aria-label="行メニュー">⋯</button></div>`;
 }
 
@@ -2656,6 +2667,7 @@ function openRowMenu(btn, key, ev) {
     nkBtn +
     shkBtn +
     (_it && isSeino(getVal(_it, 'carrier')) ? `<button class="rm-seino" onclick="rowMenuSeino()">🚚 西濃送り状を作る</button>` : '') +
+    (_it && (isSeino(getVal(_it, 'carrier')) || _it.seino_auto) ? sealMenuBtn(_it) : '') +
     `<button class="rm-soryo" onclick="rowMenuSoryo()">🚚 送料設定${_sr?(soryoIsNone(_sr)?'（なし）':`（${Number(_sr).toLocaleString()}円）`):''}</button>` +
     `<button class="rm-del" onclick="rowMenuDelete()">🗑 削除</button>`;
   document.body.appendChild(m);
@@ -3553,6 +3565,92 @@ function setupSkip() {
 }
 function rowMenuSetup() { const key = rowMenuKey; closeRowMenu(); openSetupModal(key); }
 function rowMenuSeino() { const key = rowMenuKey; closeRowMenu(); openSeinoDesk(key); }
+// ===== 西濃シール 出荷日に自動印刷（2026-11-20 本人指示）=====
+// ボタンを押した行は、出荷日になったら納品書GAS(sealAutoRun・平日10分ごと)が送り状デスクの仮登録で本登録＋会社PCで印刷し、
+// info@ へ原本メール（送り状PDF＋発注書の原本）を送る。行には「🔍シール確認」が出る→見比べて「確認しました」。
+function sealMenuBtn(it) {
+  const sa = String(it.seino_auto || '');
+  if (sa === 'done') return `<button class="rm-seino" style="color:#e65100;font-weight:700" onclick="rowMenuSealChk()">🔍 西濃シール確認${String(it.seino_chk || '') === '1' ? '（済）' : ''}</button>`;
+  if (sa === '1') return `<button class="rm-seino" style="color:#e65100" onclick="rowMenuSealAuto()">🖨 西濃シール 自動印刷 予約中 → 取り消す</button>`;
+  return `<button class="rm-seino" style="color:#e65100" onclick="rowMenuSealAuto()">🖨 出荷日に西濃シールを自動印刷</button>`;
+}
+function rowMenuSealChk() { const key = rowMenuKey; closeRowMenu(); openSealChk(key); }
+function sealTodayIso() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function sealRef(key) { return db.ref('items/' + String(key).replace(/[.#$/\[\]]/g, '_')); }
+async function rowMenuSealAuto() {
+  const key = rowMenuKey; closeRowMenu();
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); return; }
+  const it = allItems.find(i => itemKey(i) === key); if (!it) return;
+  if (String(it.seino_auto || '') === '1') {
+    if (!confirm('西濃シールの自動印刷の予約を取り消しますか？（送り状デスクの仮登録は残ります）')) return;
+    sealRef(key).update({ seino_auto: null, seino_auto_err: null }); return;
+  }
+  const dues = String(getVal(it, 'due') || '').split(',').filter(Boolean), today = sealTodayIso(), isToday = dues.includes(today);
+  if (!dues.length) { alert('出荷日が未入力です。先に出荷日を入れてください（その日に自動で印刷します）。'); return; }
+  if (!confirm('出荷日（' + dues.map(fmtDue).join('・') + '）になったら、送り状デスクの仮登録の内容で西濃シールを本登録して、会社PCで自動印刷します。\n'
+    + (isToday ? '★出荷日は今日なので、このあとすぐ印刷します。\n' : '') + '印刷したら info@ に原本（送り状PDF＋発注書）をメールします。\n\nよろしいですか？')) return;
+  sealRef(key).update({ seino_auto: '1', seino_auto_err: null, seino_auto_req: Date.now() });
+  const q = '?action=sealAutoRun&uid=' + encodeURIComponent(key) + (isToday ? '' : '&dry=1&date=' + encodeURIComponent(dues[0])) + nouhinAuth_();
+  sealToast(isToday ? '🖨 西濃へ登録して印刷しています…（30秒ほど）' : '仮登録があるか確認しています…', 40000);
+  try {
+    const j = await (await fetch(GAS_URL + q)).json();
+    const sk = (j.skipped || [])[0], dn = (j.done || [])[0];
+    if (dn && !dn.dry) sealToast('✅ 西濃シールを印刷しました No.' + dn.no + '（' + dn.name + ' ' + dn.kosu + '口）。info@ に原本メールを送りました', 9000);
+    else if (dn && dn.dry) sealToast('🖨 予約しました。' + fmtDue(dues[0]) + ' の出荷日に自動で印刷します', 6000);
+    else if (sk && /仮登録が無い/.test(sk.reason)) {
+      sealToast('', 1);
+      if (confirm('予約しましたが、送り状デスクにこの行の仮登録がまだありません。\n今から送り状デスクを開くので、内容を確認して「🗒 仮登録」を押してください。\n（仮登録ができていれば、出荷日に自動で印刷します）')) openSeinoDesk(key);
+    } else if (sk) { sealToast('', 1); alert('西濃シール: ' + sk.reason); }
+    else if (j.error) { sealToast('', 1); alert('西濃シールの確認でエラー: ' + j.error + '\n予約は入っています。出荷日の自動処理（平日10分ごと）でもう一度試します。'); }
+    else sealToast('🖨 予約しました', 4000);
+  } catch (e) { sealToast('通信エラー。予約は入っています（出荷日の自動処理で印刷します）', 6000); }
+}
+function sealToast(msg, ms) {
+  let t = document.getElementById('sealToast');
+  if (!t) { t = document.createElement('div'); t.id = 'sealToast'; t.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#333;color:#fff;padding:10px 16px;border-radius:10px;z-index:10000;font-size:14px;max-width:90vw;box-shadow:0 4px 14px rgba(0,0,0,.3)'; document.body.appendChild(t); }
+  t.textContent = msg; t.style.display = msg ? 'block' : 'none'; clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, ms || 4000);
+}
+function sealHinmei(h) { return ({ F: 'フローリング', P: '羽目板', S: 'スノコ', N: 'ナイスオリジナル' })[h] || h || ''; }
+function openSealChk(key) {
+  const it = allItems.find(i => itemKey(i) === key); if (!it) return;
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  let info = {}; try { info = JSON.parse(it.seino_auto_info || '{}'); } catch (e) {}
+  const old = document.getElementById('sealChkModal'); if (old) old.remove();
+  const m = document.createElement('div'); m.className = 'modal-overlay show'; m.id = 'sealChkModal';
+  m.onclick = e => { if (e.target === m) m.remove(); };
+  const row = [getVal(it, 'customer'), sealHinmei(getVal(it, 'hinmei')), getVal(it, 'grade'),
+    [getVal(it, 'thickness'), getVal(it, 'width'), getVal(it, 'length')].filter(Boolean).join('×'),
+    getVal(it, 'qty') ? '入' + getVal(it, 'qty') : '', (getVal(it, 'planned') || '') + '束'].filter(Boolean).join(' ');
+  const tr = (h, v, hi) => v ? `<tr><th style="text-align:left;padding:4px 8px;color:#666;white-space:nowrap;vertical-align:top;font-weight:400">${h}</th><td style="padding:4px 8px${hi ? ';font-weight:700;font-size:15px' : ''}">${esc(v)}</td></tr>` : '';
+  const err = String(it.seino_auto || '') === '1' && it.seino_auto_err;
+  const done = String(it.seino_chk || '') === '1';
+  const no = info.no || String(it.seino_auto_no || '').split(',')[0];
+  const btn = (href, label, bg, fg) => `<a href="${esc(href)}" target="_blank" rel="noopener" style="background:${bg};color:${fg || '#fff'};padding:7px 12px;border-radius:8px;text-decoration:none;font-weight:700">${label}</a>`;
+  m.innerHTML = `<div class="modal" style="max-width:560px"><div class="modal-head" style="background:#e65100">🔍 西濃シール確認<button class="modal-close" onclick="document.getElementById('sealChkModal').remove()">&times;</button></div>
+  <div style="padding:14px 16px;font-size:14px;line-height:1.6">
+  ${err ? `<div style="background:#ffebee;color:#b71c1c;border-radius:8px;padding:8px 10px;margin-bottom:10px;font-weight:700">⚠️ 自動印刷できませんでした: ${esc(it.seino_auto_err)}</div>` : ''}
+  ${info.no ? `<div style="font-weight:700;margin-bottom:4px">■ 印刷した送り状（シール）</div>
+  <table style="border-collapse:collapse;width:100%;background:#fff8f0">${tr('送り状No', info.no, 1)}${tr('届け先', info.name + (info.tome ? '（' + info.tome + '支店止め）' : ''), 1)}${info.tome ? '' : tr('住所', '〒' + info.zip + ' ' + info.addr)}${tr('TEL', info.tel)}${tr('個口', info.kosu + '口 / ' + info.kg + 'kg / ' + info.motochaku, 1)}${tr('記事', info.kiji, 1)}${tr('荷送人', info.sender)}${tr('配達指定', info.haitatsu)}${tr('出荷日', info.date)}</table>`
+    : (it.seino_auto_no ? `<div>送り状No ${esc(it.seino_auto_no)}（送り状デスクで先に発行済み）</div>` : '')}
+  <div style="font-weight:700;margin:10px 0 4px">■ 加工予定表のこの行</div><div style="background:#f5f5f5;border-radius:8px;padding:6px 10px">${esc(row)}${getVal(it, 'remark') ? '<br><span style="color:#666">備考: ' + esc(getVal(it, 'remark')) + '</span>' : ''}</div>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+   ${it.seino_auto_pdf ? btn(it.seino_auto_pdf, '📄 送り状PDF（原本）', '#1565c0') : ''}
+   ${it.seino_auto_hacchu ? btn(it.seino_auto_hacchu, '📎 発注書の原本', '#6a1b9a') : ''}
+   ${no ? btn('https://track.seino.co.jp/kamotsu/GempyoNoShokai.do?GNPNO1=' + no, '追跡', '#eee', '#333') : ''}
+  </div>
+  <div style="font-size:12px;color:#666;margin-top:8px">原本（送り状PDF＋発注書）は info@ にもメールしています。印刷したシールと見比べて、合っていたら下のボタンを押してください。</div>
+  <div style="margin-top:12px;text-align:right">${done
+    ? `<span style="color:#2e7d32;font-weight:700;margin-right:10px">✅ 確認済み</span><button onclick="sealChkSet('${key}',false)" style="padding:8px 12px">確認を取り消す</button>`
+    : (no ? `<button onclick="sealChkSet('${key}',true)" style="background:#2e7d32;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:700;font-size:15px">✅ 確認しました（シールと合っていた）</button>` : '')}</div>
+  </div></div>`;
+  document.body.appendChild(m);
+}
+function sealChkSet(key, on) {
+  if (!liveLoaded) { alert('サーバーと同期中です。数秒待ってからもう一度お試しください。'); return; }
+  sealRef(key).update(on ? { seino_chk: '1', seino_chk_at: Date.now() } : { seino_chk: null, seino_chk_at: null });
+  const m = document.getElementById('sealChkModal'); if (m) m.remove();
+  sealToast(on ? '✅ 西濃シール 確認済みにしました' : '確認を取り消しました');
+}
 // 西濃送り状デスクへ、この行の内容（届け先・個口・長さ・出荷日・着日指定・行キー）をURLハッシュで渡して開く（2026-09-11）
 // 注文由来の行(od_)は送り状デスク側で注文の住所を引き、手入力行は取引先マスタから住所を引く
 const SEINO_DESK_URL = 'https://h02050d-ship-it.github.io/seino-desk/';
