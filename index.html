@@ -186,6 +186,10 @@
   .tbl-seizou td:last-child, .tbl-seizou th:last-child { border-right: none !important; border-left: none !important; }
   /* 製造順8はまだ先の予定なので薄く表示(9/18 本人指示で7は通常表示) */
   .tbl-seizou tr.ord-faint { opacity: .4; }
+  /* 製造順1〜3は上の結束予定に同じ行が出るので、製造中では薄く小さく表示(11/25 本人指示・結束予定側はそのまま) */
+  .tbl-seizou tr.ord-kessoku { opacity: .4; }
+  .tbl-seizou tr.ord-kessoku td, .tbl-seizou tr.ord-kessoku td .cust, .tbl-seizou tr.ord-kessoku td .bnum, .tbl-seizou tr.ord-kessoku td .dim, .tbl-seizou tr.ord-kessoku td.cust, .tbl-seizou tr.ord-kessoku td.bnum, .tbl-seizou tr.ord-kessoku td.dim, .tbl-seizou tr.ord-kessoku td.rmk, .tbl-seizou tr.ord-kessoku select { font-size: clamp(11px, .85vw, 16px) !important; }
+  .tbl-seizou tr.ord-kessoku td { padding-top: 0; padding-bottom: 0; line-height: 1.05; }
 
   .tbl-kanryo thead th { background: #78909c; }
   .tbl-kanryo tbody tr { background: #fafafa; opacity: .45; }
@@ -1240,7 +1244,8 @@ function render() {
       const row = buildRow(it, 14, cols);
       // 薄表示は1種類だけ: NG行はng-rowのみ（ord-faintと重ねると二重に薄くなる）
       let ordCls = (isNgRow(it) || isOrdNg(it)) ? ' ng-row'
-        : (String(getVal(it,'order'))==='8' ? ' ord-faint' : '');
+        : (String(getVal(it,'order'))==='8' ? ' ord-faint'
+        : (it._ord >= 1 && it._ord <= 3 ? ' ord-kessoku' : ''));
       html += `<tr data-rowkey="${k}" data-rowidx="${idx}" class="${ordCls}"><td class="drag-handle">⠿</td>${row.slice(4, -5)}<td>${menuBtn}</td></tr>`;
     });
     html += '</tbody></table></div>';
