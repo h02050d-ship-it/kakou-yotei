@@ -167,11 +167,11 @@
   .tbl-kessoku thead th { background: #c62828; }
   .tbl-kessoku tbody tr { background: #fff; }
   .tbl-kessoku tbody tr:nth-child(even) { background: #fff8f8; }
-  .tbl-kessoku tbody td { font-size: clamp(18px, 1.5vw, 28px); padding: 4px 3px; line-height: 1.2; }
-  .tbl-kessoku .cust { font-weight: 800; font-size: clamp(18px, 1.5vw, 28px); text-align: left !important; }
-  .tbl-kessoku .bnum { font-weight: 900; font-size: clamp(20px, 1.7vw, 32px); }
-  .tbl-kessoku .dim { font-weight: 700; font-size: clamp(18px, 1.5vw, 28px); }
-  .tbl-kessoku .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(16px, 1.45vw, 28px); color: #795548; border-right: none !important; font-weight: 700; }
+  .tbl-kessoku tbody td { font-size: clamp(16px, 1.35vw, 25px); padding: 3px 3px; line-height: 1.15; }
+  .tbl-kessoku .cust { font-weight: 800; font-size: clamp(16px, 1.35vw, 25px); text-align: left !important; }
+  .tbl-kessoku .bnum { font-weight: 900; font-size: clamp(18px, 1.5vw, 29px); }
+  .tbl-kessoku .dim { font-weight: 700; font-size: clamp(16px, 1.35vw, 25px); }
+  .tbl-kessoku .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(14px, 1.3vw, 25px); color: #795548; border-right: none !important; font-weight: 700; }
 
   .tbl-seizou thead th { background: #e65100; }
   .tbl-seizou tbody tr { background: #fff; }
@@ -182,7 +182,7 @@
   .tbl-seizou .dim { font-weight: 700; font-size: clamp(16px, 1.45vw, 28px); }
   .tbl-seizou .sel-jun, .tbl-seizou .sel-ord { font-size: clamp(13px, 1vw, 18px); }
   .tbl-seizou .cb-check { width: 18px; height: 18px; }
-  .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(16px, 1.45vw, 28px); color: #795548; border-right: none !important; font-weight: 700; }
+  .tbl-seizou .rmk { white-space: normal; word-break: break-all; text-align: left !important; font-size: clamp(14px, 1.3vw, 25px); color: #795548; border-right: none !important; font-weight: 700; }
   .tbl-seizou td:last-child, .tbl-seizou th:last-child { border-right: none !important; border-left: none !important; }
   /* 製造順8はまだ先の予定なので薄く表示(9/18 本人指示で7は通常表示) */
   .tbl-seizou tr.ord-faint { opacity: .4; }
@@ -1220,8 +1220,8 @@ function render() {
   // 内藤運輸への出荷通知(出荷依頼LINE)がまだの品目＝タグ「出荷」と同じ判定。0件なら出さない
   html += shkAlertHtml();
 
-  // 結束順
-  const kessokuCols = cols.filter(c => c !== 'zaiko');
+  // 結束順（加工材在庫の列も表示・11/26 本人指示）
+  const kessokuCols = cols;
   html += `<div class="sec-head sec-kessoku"><h2>結束予定</h2><span class="count">${kessoku.length}件</span></div>`;
   if (kessoku.length) {
     html += `<div class="table-scroll"><table class="tbl-kessoku" id="tbl-kessoku">${buildHead(kessokuCols,'kessoku')}<tbody>`;
